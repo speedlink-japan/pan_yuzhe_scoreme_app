@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import styles from './page.module.css'
 import TopBar from '@/components/TopBar'
 import BottomNavBar from '@/components/BottomNavBar'
@@ -10,10 +10,11 @@ import StudyPanel from '@/components/StudyPanel'
 import CalendarPanel from '@/components/CalendarPanel'
 import NotebookPanel from '@/components/NotebookPanel'
 import CharacterPanel from '@/components/CharacterPanel'
+import { saveLayoutState, loadLayoutState } from '@/utils/layoutStorage'
 
 type PanelType = 'todo' | 'study' | 'calendar' | 'notebook' | 'character'
 
-interface PanelPosition {
+export interface PanelPosition {
   x: number
   y: number
   width: number
@@ -33,8 +34,41 @@ export default function Home() {
   const [todoPoints, setTodoPoints] = useState(0)
   const [studyPoints, setStudyPoints] = useState(0)
   const [notebookPoints, setNotebookPoints] = useState(0)
-  const [isLocked, setIsLocked] = useState(false)
-  const [panelPositions, setPanelPositions] = useState<Record<PanelType, PanelPosition>>(defaultPositions)
+  const [isLocked, setIsLockedState] = useState(false)
+  const [panelPositions, setPanelPositionsState] = useState<Record<PanelType, PanelPosition>>(defaultPositions)
+  const [isHydrated, setIsHydrated] = useState(false)
+
+  // 初期化：ストレージからレイアウト状態を復元
+  useEffect(() => {
+    const saved = loadLayoutState()
+    if (saved) {
+      setIsLockedState(saved.isLocked)
+      setPanelPositionsState(saved.panelPositions as Record<PanelType, PanelPosition>)
+    }
+    setIsHydrated(true)
+  }, [])
+
+  // レイアウト状態が変更されたときに保存
+  useEffect(() => {
+    if (isHydrated) {
+      saveLayoutState(isLocked, panelPositions)
+    }
+  }, [isLocked, panelPositions, isHydrated])
+
+  const setIsLocked = (value: boolean) => {
+    setIsLockedState(value)
+  }
+
+  const setPanelPositions = (value: Record<PanelType, PanelPosition> | ((prev: Record<PanelType, PanelPosition>) => Record<PanelType, PanelPosition>)) => {
+    if (typeof value === 'function') {
+      setPanelPositionsState(prev => {
+        const newValue = value(prev)
+        return newValue
+      })
+    } else {
+      setPanelPositionsState(value)
+    }
+  }
 
   const togglePanel = (panel: PanelType) => {
     setVisiblePanels(prev =>
