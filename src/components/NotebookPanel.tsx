@@ -12,7 +12,11 @@ interface Memo {
   points: number
 }
 
-const NotebookPanel: React.FC = () => {
+interface NotebookPanelProps {
+  onPointsChange?: (points: number) => void
+}
+
+const NotebookPanel: React.FC<NotebookPanelProps> = ({ onPointsChange }) => {
   const [memos, setMemos] = useState<Memo[]>([
     {
       id: '1',
@@ -62,6 +66,12 @@ const NotebookPanel: React.FC = () => {
   const calculateTotalPoints = () => {
     return memos.reduce((sum, memo) => sum + memo.points, 0)
   }
+
+  // ポイント変更を親に通知
+  React.useEffect(() => {
+    const totalPoints = memos.reduce((sum, memo) => sum + memo.points, 0)
+    onPointsChange?.(totalPoints)
+  }, [memos, onPointsChange])
 
   return (
     <div className={styles.panel}>

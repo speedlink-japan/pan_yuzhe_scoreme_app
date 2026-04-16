@@ -12,7 +12,11 @@ interface Book {
   points: number
 }
 
-const StudyPanel: React.FC = () => {
+interface StudyPanelProps {
+  onPointsChange?: (points: number) => void
+}
+
+const StudyPanel: React.FC<StudyPanelProps> = ({ onPointsChange }) => {
   const [books, setBooks] = useState<Book[]>([
     {
       id: '1',
@@ -74,6 +78,12 @@ const StudyPanel: React.FC = () => {
   const calculateTotalPoints = () => {
     return books.reduce((sum, book) => sum + book.points, 0)
   }
+
+  // ポイント変更を親に通知
+  React.useEffect(() => {
+    const totalPoints = books.reduce((sum, book) => sum + book.points, 0)
+    onPointsChange?.(totalPoints)
+  }, [books, onPointsChange])
 
   const categoryLabels: Record<string, string> = {
     manga: '漫画',

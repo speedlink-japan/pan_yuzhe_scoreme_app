@@ -76,7 +76,11 @@ const calculatePoints = (item: TodoItem): number => {
   }
 }
 
-const TodoPanel: React.FC = () => {
+interface TodoPanelProps {
+  onPointsChange?: (points: number) => void
+}
+
+const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   const [todos, setTodos] = useState<TodoItem[]>([
     {
       type: 'single',
@@ -120,6 +124,11 @@ const TodoPanel: React.FC = () => {
     milestones: [],
     newMilestoneName: '',
   })
+
+  // ポイント変更を親に通知
+  React.useEffect(() => {
+    onPointsChange?.(earnedPoints)
+  }, [earnedPoints, onPointsChange])
 
   const addSingleTask = () => {
     if (newTodoText.trim()) {
