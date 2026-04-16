@@ -64,7 +64,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 0.9rem;
   background: rgba(255, 255, 255, 0.9);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.7);
@@ -72,12 +72,12 @@
 }
 
 .statIcon {
-  font-size: 1.5rem;
+  font-size: 1.2rem;
 }
 
 .statLabel {
   display: block;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: #999;
   font-weight: 500;
 }
@@ -87,6 +87,13 @@
   font-size: 1.1rem;
   font-weight: bold;
   color: #FF8C3A;
+}
+
+.statValueSmall {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #666;
 }
 
 .lockButton {
@@ -134,7 +141,8 @@
 @media (max-width: 600px) {
   .topbar {
     padding: 0.75rem 1rem;
-    gap: 1rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
   }
 
   .brand {
@@ -156,12 +164,93 @@
     font-size: 0.65rem;
   }
 
+  .stats {
+    gap: 0.5rem;
+    width: 100%;
+    order: 3;
+  }
+
   .statItem {
-    padding: 0.5rem 0.75rem;
-    font-size: 0.85rem;
+    flex: 1;
+    min-width: 70px;
+    padding: 0.5rem 0.6rem;
+    gap: 0.4rem;
+  }
+
+  .statIcon {
+    font-size: 1rem;
+  }
+
+  .statLabel {
+    font-size: 0.65rem;
   }
 
   .statValue {
     font-size: 0.95rem;
+  }
+
+  .statValueSmall {
+    font-size: 0.8rem;
+  }
+
+  .lockButton {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    padding: 0.5rem 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .brand {
+    min-width: auto;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .brandText h1 {
+    font-size: 0.9rem;
+  }
+
+  .brandText p {
+    font-size: 0.6rem;
+  }
+
+  .brandBadge {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+  }
+
+  .stats {
+    min-height: auto;
+  }
+
+  .statItem {
+    padding: 0.4rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .statIcon {
+    font-size: 0.9rem;
+  }
+
+  .statLabel {
+    font-size: 0.6rem;
+  }
+
+  .statValue {
+    font-size: 0.85rem;
+  }
+
+  .statValueSmall {
+    font-size: 0.7rem;
+  }
+
+  .lockButton {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.75rem;
   }
 }

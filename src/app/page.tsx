@@ -4,7 +4,6 @@ import { useState } from 'react'
 import styles from './page.module.css'
 import TopBar from '@/components/TopBar'
 import BottomNavBar from '@/components/BottomNavBar'
-import PointsSummary from '@/components/PointsSummary'
 import DraggablePanelWrapper from '@/components/DraggablePanelWrapper'
 import TodoPanel from '@/components/TodoPanel'
 import StudyPanel from '@/components/StudyPanel'
@@ -58,17 +57,12 @@ export default function Home() {
     <main className={styles.main}>
       <TopBar
         totalPoints={totalPoints}
+        todoPoints={todoPoints}
+        studyPoints={studyPoints}
+        notebookPoints={notebookPoints}
         isLocked={isLocked}
         onToggleLock={() => setIsLocked(!isLocked)}
       />
-
-      {!isLocked && (
-        <PointsSummary
-          todoPoints={todoPoints}
-          studyPoints={studyPoints}
-          notebookPoints={notebookPoints}
-        />
-      )}
 
       <div className={styles.dashboardContainer}>
         {visiblePanels.includes('todo') && (

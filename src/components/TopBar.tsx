@@ -5,11 +5,21 @@ import styles from './TopBar.module.css'
 
 interface TopBarProps {
   totalPoints: number
+  todoPoints: number
+  studyPoints: number
+  notebookPoints: number
   isLocked: boolean
   onToggleLock: () => void
 }
 
-const TopBar: React.FC<TopBarProps> = ({ totalPoints, isLocked, onToggleLock }) => {
+const TopBar: React.FC<TopBarProps> = ({
+  totalPoints,
+  todoPoints,
+  studyPoints,
+  notebookPoints,
+  isLocked,
+  onToggleLock,
+}) => {
   return (
     <header className={styles.topbar}>
       <div className={styles.brand}>
@@ -24,8 +34,29 @@ const TopBar: React.FC<TopBarProps> = ({ totalPoints, isLocked, onToggleLock }) 
         <div className={styles.statItem}>
           <span className={styles.statIcon}>⭐</span>
           <div>
-            <span className={styles.statLabel}>合計ポイント</span>
+            <span className={styles.statLabel}>合計</span>
             <span className={styles.statValue}>{totalPoints}pt</span>
+          </div>
+        </div>
+        <div className={styles.statItem}>
+          <span className={styles.statIcon}>✓</span>
+          <div>
+            <span className={styles.statLabel}>TODO</span>
+            <span className={styles.statValueSmall}>{todoPoints}pt</span>
+          </div>
+        </div>
+        <div className={styles.statItem}>
+          <span className={styles.statIcon}>📚</span>
+          <div>
+            <span className={styles.statLabel}>読書</span>
+            <span className={styles.statValueSmall}>{studyPoints}pt</span>
+          </div>
+        </div>
+        <div className={styles.statItem}>
+          <span className={styles.statIcon}>📝</span>
+          <div>
+            <span className={styles.statLabel}>メモ</span>
+            <span className={styles.statValueSmall}>{notebookPoints}pt</span>
           </div>
         </div>
       </div>
