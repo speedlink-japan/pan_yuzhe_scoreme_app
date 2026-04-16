@@ -8,9 +8,18 @@ type PanelType = 'todo' | 'study' | 'calendar' | 'notebook' | 'character'
 interface BottomNavBarProps {
   visiblePanels: PanelType[]
   onTogglePanel: (panel: PanelType) => void
+  isLocked: boolean
+  onToggleLock: () => void
+  onReset: () => void
 }
 
-const BottomNavBar: React.FC<BottomNavBarProps> = ({ visiblePanels, onTogglePanel }) => {
+const BottomNavBar: React.FC<BottomNavBarProps> = ({ 
+  visiblePanels, 
+  onTogglePanel,
+  isLocked,
+  onToggleLock,
+  onReset,
+}) => {
   const panels: { id: PanelType; label: string; icon: string }[] = [
     { id: 'todo', label: 'TODO', icon: '✓' },
     { id: 'study', label: 'Study', icon: '📚' },
@@ -19,19 +28,47 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({ visiblePanels, onTogglePane
     { id: 'character', label: 'Me', icon: '🏠' },
   ]
 
+  const handleReset = () => {
+    if (
+      typeof window !== 'undefined' &&
+      window.confirm('レイアウトをリセットしてもよろしいですか？')
+    ) {
+      onReset()
+    }
+  }
+
   return (
     <nav className={styles.navbar}>
-      {panels.map(panel => (
+      <div className={styles.panelButtons}>
+        {panels.map(panel => (
+          <button
+            key={panel.id}
+            className={`${styles.navItem} ${styles[panel.id]} ${visiblePanels.includes(panel.id) ? styles.active : ''}`}
+            onClick={() => onTogglePanel(panel.id)}
+            title={panel.label}
+          >
+            <span className={styles.icon}>{panel.icon}</span>
+            <span className={styles.label}>{panel.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className={styles.controlButtons}>
         <button
-          key={panel.id}
-          className={`${styles.navItem} ${styles[panel.id]} ${visiblePanels.includes(panel.id) ? styles.active : ''}`}
-          onClick={() => onTogglePanel(panel.id)}
-          title={panel.label}
+          className={`${styles.controlButton} ${styles.lockButton} ${isLocked ? styles.locked : ''}`}
+          onClick={onToggleLock}
+          title={isLocked ? 'クリックして配置を調整' : 'クリックして固定'}
         >
-          <span className={styles.icon}>{panel.icon}</span>
-          <span className={styles.label}>{panel.label}</span>
+          {isLocked ? '🔒' : '🔓'}
         </button>
-      ))}
+        <button
+          className={`${styles.controlButton} ${styles.resetButton}`}
+          onClick={handleReset}
+          title="レイアウトをリセット"
+        >
+          🔄
+        </button>
+      </div>
     </nav>
   )
 }

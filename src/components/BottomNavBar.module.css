@@ -1,14 +1,27 @@
 .navbar {
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
   align-items: center;
   height: 55px;
   background: rgba(255, 255, 255, 0.7);
   border-top: 1px solid rgba(255, 255, 255, 0.5);
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
-  padding: 5px 0;
-  gap: 5px;
+  padding: 5px 10px;
+  gap: 10px;
   backdrop-filter: blur(10px);
+}
+
+.panelButtons {
+  display: flex;
+  gap: 5px;
+  flex: 1;
+  justify-content: center;
+}
+
+.controlButtons {
+  display: flex;
+  gap: 5px;
+  align-items: center;
 }
 
 .navItem {
@@ -55,6 +68,41 @@
   line-height: 1;
   max-width: 45px;
   text-align: center;
+}
+
+/* コントロールボタン */
+.controlButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.controlButton:hover {
+  background: rgba(255, 255, 255, 0.85);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.lockButton {
+  color: #FF6B9D;
+}
+
+.lockButton.locked {
+  color: #FFD966;
+}
+
+.resetButton {
+  color: #6B9FC8;
 }
 
 /* パネルカラー定義 */

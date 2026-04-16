@@ -258,9 +258,6 @@ export default function Home() {
         todoPoints={todoPoints}
         studyPoints={studyPoints}
         notebookPoints={notebookPoints}
-        isLocked={isLocked}
-        onToggleLock={() => setIsLocked(!isLocked)}
-        onReset={handleReset}
       />
 
       <div className={styles.dashboardContainer}>
@@ -325,7 +322,13 @@ export default function Home() {
         )}
       </div>
 
-      <BottomNavBar visiblePanels={visiblePanels} onTogglePanel={togglePanel} />
+      <BottomNavBar 
+        visiblePanels={visiblePanels} 
+        onTogglePanel={togglePanel}
+        isLocked={isLocked}
+        onToggleLock={() => setIsLocked(!isLocked)}
+        onReset={handleReset}
+      />
     </main>
   )
 }
