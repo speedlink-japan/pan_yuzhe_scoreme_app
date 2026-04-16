@@ -22,12 +22,13 @@ export interface PanelPosition {
 }
 
 // デスクトップ用デフォルトレイアウト (1024px以上)
+// NotebookPanel（自由メモ）を中央に大型配置、周りに他のパネル配置
 const defaultPositionsPC: Record<PanelType, PanelPosition> = {
-  todo: { x: 20, y: 160, width: 380, height: 480 },
-  calendar: { x: 420, y: 160, width: 380, height: 480 },
-  study: { x: 820, y: 160, width: 360, height: 320 },
-  notebook: { x: 420, y: 660, width: 380, height: 320 },
-  character: { x: 820, y: 490, width: 360, height: 290 },
+  todo: { x: 20, y: 160, width: 280, height: 360 },
+  calendar: { x: 20, y: 530, width: 280, height: 360 },
+  study: { x: 320, y: 160, width: 680, height: 360 },
+  notebook: { x: 1020, y: 160, width: 280, height: 730 },
+  character: { x: 320, y: 530, width: 680, height: 360 },
 }
 
 // タブレット用デフォルトレイアウト (600-1024px)
