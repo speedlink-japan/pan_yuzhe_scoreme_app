@@ -4,13 +4,21 @@
   height: 100vh;
   width: 100vw;
   background: linear-gradient(135deg, #E8F4FF 0%, #FFF9E6 100%);
+  overflow: hidden;
 }
 
-.panelContainer {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1rem;
-  padding: 1rem;
+.dashboardContainer {
+  position: relative;
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+@media (max-width: 600px) {
+  .dashboardContainer {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    position: static;
+  }
 }

@@ -1,0 +1,103 @@
+.wrapper {
+  position: absolute;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, opacity 0.2s ease;
+  z-index: 10;
+}
+
+.wrapper.locked {
+  cursor: default;
+}
+
+.wrapper.dragging {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  opacity: 0.95;
+  z-index: 50;
+}
+
+.wrapper.resizing {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  opacity: 0.95;
+  z-index: 50;
+}
+
+.dragHandle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background: linear-gradient(90deg, rgba(255, 200, 220, 0.3) 0%, rgba(200, 220, 255, 0.3) 100%);
+  border-bottom: 1px solid rgba(200, 200, 200, 0.1);
+  z-index: 20;
+}
+
+.dragHandle:hover {
+  background: linear-gradient(90deg, rgba(255, 200, 220, 0.5) 0%, rgba(200, 220, 255, 0.5) 100%);
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding-top: 8px;
+}
+
+.resizeHandle {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #FFD966;
+  opacity: 0;
+  transition: opacity 0.2s ease, color 0.2s ease;
+  z-index: 20;
+}
+
+.wrapper:hover .resizeHandle {
+  opacity: 1;
+}
+
+.resizeHandle:hover {
+  color: #FF6B9D;
+}
+
+/* User select を無効化してドラッグ時のテキスト選択を防ぐ */
+.wrapper.dragging *,
+.wrapper.resizing * {
+  user-select: none;
+  pointer-events: none;
+}
+
+.dragHandle {
+  user-select: none;
+}
+
+@media (max-width: 600px) {
+  .wrapper {
+    /* モバイルでは固定配置 */
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    margin-bottom: 1rem;
+  }
+
+  .dragHandle {
+    display: none;
+  }
+
+  .resizeHandle {
+    display: none;
+  }
+}
