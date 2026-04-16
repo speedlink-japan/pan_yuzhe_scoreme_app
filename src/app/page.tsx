@@ -232,14 +232,14 @@ export default function Home() {
 
   // layoutMode が変更されたときに動的レイアウトを再計算
   useEffect(() => {
-    if (autoLayoutMode && isHydrated) {
+    if (isHydrated) {
       const width = typeof window !== 'undefined' ? window.innerWidth : 1024
       if (width >= 1024) {
         const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, layoutMode)
         setPanelPositionsState(dynamicLayout)
       }
     }
-  }, [layoutMode, autoLayoutMode, visiblePanels, isHydrated])
+  }, [layoutMode, visiblePanels, isHydrated])
 
   const setIsLocked = (value: boolean) => {
     setIsLockedState(value)
@@ -295,21 +295,17 @@ export default function Home() {
   }
 
   const handleReset = () => {
-    // 現在のウィンドウサイズに基づいて動的レイアウトを生成
+    // 現在のウィンドウサイズに基づいてデフォルトレイアウトを適用
     const width = typeof window !== 'undefined' ? window.innerWidth : 1024
     
-    if (width >= 1024) {
-      // PC版：動的レイアウトを使用
-      const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, layoutMode)
-      setPanelPositionsState(dynamicLayout)
-    } else {
-      // タブレット・モバイル版：デフォルトレイアウトを使用
-      setPanelPositionsState(getDefaultLayout(width))
-    }
+    // 画面サイズに応じたデフォルトレイアウトを取得して適用
+    const resetLayout = getDefaultLayout(width)
+    setPanelPositionsState(resetLayout)
     
     setPanelZIndicesState(defaultZIndices)
     setIsLockedState(false)
-    setAutoLayoutMode(true) // 自動レイアウトモードをON
+    setAutoLayoutMode(true)
+    setLayoutMode('normal') // リセット時は通常モードに戻す
   }
 
   const totalPoints = todoPoints + studyPoints + notebookPoints

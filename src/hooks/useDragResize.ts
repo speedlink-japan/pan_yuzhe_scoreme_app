@@ -25,6 +25,11 @@ export const useDragResize = (
   const dragStartRef = useRef({ x: 0, y: 0, panelX: 0, panelY: 0 })
   const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0 })
 
+  // initialState が変更されたときに position を更新
+  useEffect(() => {
+    setPosition(initialState)
+  }, [initialState.x, initialState.y, initialState.width, initialState.height])
+
   // マウスダウン時の処理
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>, type: 'drag' | 'resize') => {
     if (isLocked) return
