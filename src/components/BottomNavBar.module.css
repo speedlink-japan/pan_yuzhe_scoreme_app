@@ -2,12 +2,12 @@
   display: flex;
   justify-content: space-around;
   align-items: center;
-  height: 80px;
+  height: 55px;
   background: rgba(255, 255, 255, 0.7);
   border-top: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 -2px 15px rgba(0, 0, 0, 0.08);
-  padding: 10px 0;
-  gap: 10px;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+  padding: 5px 0;
+  gap: 5px;
   backdrop-filter: blur(10px);
 }
 
@@ -16,9 +16,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  width: 60px;
-  height: 60px;
+  gap: 1px;
+  width: 48px;
+  height: 48px;
   padding: 0;
   background: rgba(255, 255, 255, 0.5);
   border: none;
@@ -26,34 +26,34 @@
   border-radius: 50%;
   transition: all 0.3s ease;
   color: #666;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 500;
 }
 
 .navItem:hover {
   background: rgba(255, 255, 255, 0.8);
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: scale(1.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   animation: pulse 0.4s ease-in-out;
 }
 
 .navItem.active {
   border: none;
-  transform: scale(1.05);
+  transform: scale(1.04);
   animation: scaleIn 0.3s ease-out;
 }
 
 .icon {
-  font-size: 20px;
+  font-size: 18px;
   display: block;
   line-height: 1;
 }
 
 .label {
-  font-size: 9px;
+  font-size: 7px;
   white-space: nowrap;
   line-height: 1;
-  max-width: 50px;
+  max-width: 45px;
   text-align: center;
 }
 

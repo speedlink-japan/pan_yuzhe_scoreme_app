@@ -73,7 +73,7 @@ const defaultZIndices: Record<PanelType, number> = {
 const calculateDynamicLayout = (
   visiblePanels: PanelType[],
   viewportWidth: number,
-  topBarHeight: number = 160
+  topBarHeight: number = 50
 ): Record<PanelType, PanelPosition> => {
   const panelCount = visiblePanels.length
   // 初期化：全パネルをデフォルト値で設定
@@ -87,7 +87,7 @@ const calculateDynamicLayout = (
 
   // 計算用の定数
   const availableWidth = viewportWidth - 20 // 左右マージン 10px + 10px
-  const availableHeight = window.innerHeight - topBarHeight - 100 // TopBar + BottomBar + マージン
+  const availableHeight = window.innerHeight - topBarHeight - 65 // TopBar + BottomBar + マージン
   const gap = 10 // パネル間のスペース
 
   // パネル配置パターンを決定
