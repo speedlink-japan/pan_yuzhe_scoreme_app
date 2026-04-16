@@ -69,6 +69,70 @@ const defaultZIndices: Record<PanelType, number> = {
   character: 14,
 }
 
+// 動的レイアウト計算：表示パネル数に応じて画面いっぱいに使用
+const calculateDynamicLayout = (
+  visiblePanels: PanelType[],
+  viewportWidth: number,
+  topBarHeight: number = 160
+): Record<PanelType, PanelPosition> => {
+  const panelCount = visiblePanels.length
+  // 初期化：全パネルをデフォルト値で設定
+  const layout: Record<PanelType, PanelPosition> = {
+    todo: defaultPositionsPC.todo,
+    study: defaultPositionsPC.study,
+    calendar: defaultPositionsPC.calendar,
+    notebook: defaultPositionsPC.notebook,
+    character: defaultPositionsPC.character,
+  }
+
+  // 計算用の定数
+  const availableWidth = viewportWidth - 20 // 左右マージン 10px + 10px
+  const availableHeight = window.innerHeight - topBarHeight - 100 // TopBar + BottomBar + マージン
+  const gap = 10 // パネル間のスペース
+
+  // パネル配置パターンを決定
+  let columns = 1,
+    rows = 1
+  if (panelCount === 2) {
+    columns = 2
+    rows = 1
+  } else if (panelCount === 3) {
+    columns = 3
+    rows = 1
+  } else if (panelCount === 4) {
+    columns = 2
+    rows = 2
+  } else if (panelCount === 5) {
+    columns = 3
+    rows = 2
+  } else if (panelCount > 5) {
+    // 5以上の場合は4列で対応
+    columns = Math.ceil(Math.sqrt(panelCount))
+    rows = Math.ceil(panelCount / columns)
+  }
+
+  // 各パネルのサイズを計算
+  const panelWidth = (availableWidth - (columns - 1) * gap) / columns
+  const panelHeight = (availableHeight - (rows - 1) * gap) / rows
+
+  // 各パネルの位置を計算
+  visiblePanels.forEach((panelId, index) => {
+    const col = index % columns
+    const row = Math.floor(index / columns)
+    const x = 10 + col * (panelWidth + gap)
+    const y = topBarHeight + row * (panelHeight + gap)
+
+    layout[panelId] = {
+      x: Math.round(x),
+      y: Math.round(y),
+      width: Math.round(panelWidth),
+      height: Math.round(panelHeight),
+    }
+  })
+
+  return layout
+}
+
 export default function Home() {
   const [visiblePanels, setVisiblePanels] = useState<PanelType[]>(['calendar', 'notebook', 'character'])
   const [todoPoints, setTodoPoints] = useState(0)
@@ -78,6 +142,7 @@ export default function Home() {
   const [panelPositions, setPanelPositionsState] = useState<Record<PanelType, PanelPosition>>(defaultPositions)
   const [panelZIndices, setPanelZIndicesState] = useState<Record<PanelType, number>>(defaultZIndices)
   const [isHydrated, setIsHydrated] = useState(false)
+  const [autoLayoutMode, setAutoLayoutMode] = useState(true) // 動的レイアウトモードのフラグ
 
   // 初期化：ストレージからレイアウト状態を復元 & ウィンドウサイズ監視
   useEffect(() => {
@@ -91,10 +156,14 @@ export default function Home() {
         if (saved.panelZIndices) {
           setPanelZIndicesState(saved.panelZIndices as Record<PanelType, number>)
         }
+        setAutoLayoutMode(false) // 保存されたレイアウトがあるので自動レイアウトをOFF
       } else {
-        // 保存されたレイアウトがない場合は、画面幅に応じたデフォルトレイアウトを使用
+        // 保存されたレイアウトがない場合は、初期表示パネルで動的レイアウトを使用
         const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-        setPanelPositionsState(getDefaultLayout(width))
+        const width1024 = width >= 1024 ? width : 1024
+        const dynamicLayout = calculateDynamicLayout(['calendar', 'notebook', 'character'], width1024)
+        setPanelPositionsState(dynamicLayout)
+        setAutoLayoutMode(true) // 自動レイアウトON
       }
     }
 
@@ -125,14 +194,28 @@ export default function Home() {
   }
 
   const togglePanel = (panel: PanelType) => {
-    setVisiblePanels(prev =>
-      prev.includes(panel)
+    setVisiblePanels(prev => {
+      const newVisiblePanels = prev.includes(panel)
         ? prev.filter(p => p !== panel)
         : [...prev, panel]
-    )
+      
+      // 自動レイアウトモードがONの場合、新しいパネル構成で動的レイアウトを適用
+      if (autoLayoutMode) {
+        const width = typeof window !== 'undefined' ? window.innerWidth : 1024
+        if (width >= 1024) {
+          const dynamicLayout = calculateDynamicLayout(newVisiblePanels, width)
+          setPanelPositions(dynamicLayout)
+        }
+      }
+
+      return newVisiblePanels
+    })
   }
 
   const handlePositionChange = (panelId: PanelType, newPosition: PanelPosition) => {
+    // ユーザーが手動でドラッグして位置を変更した場合、自動レイアウトをOFF
+    setAutoLayoutMode(false)
+    
     setPanelPositions(prev => ({
       ...prev,
       [panelId]: newPosition,
@@ -149,11 +232,21 @@ export default function Home() {
   }
 
   const handleReset = () => {
-    // 現在のウィンドウサイズに基づいてデフォルトレイアウトを取得
+    // 現在のウィンドウサイズに基づいて動的レイアウトを生成
     const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-    setPanelPositionsState(getDefaultLayout(width))
+    
+    if (width >= 1024) {
+      // PC版：動的レイアウトを使用
+      const dynamicLayout = calculateDynamicLayout(visiblePanels, width)
+      setPanelPositionsState(dynamicLayout)
+    } else {
+      // タブレット・モバイル版：デフォルトレイアウトを使用
+      setPanelPositionsState(getDefaultLayout(width))
+    }
+    
     setPanelZIndicesState(defaultZIndices)
     setIsLockedState(false)
+    setAutoLayoutMode(true) // 自動レイアウトモードをON
   }
 
   const totalPoints = todoPoints + studyPoints + notebookPoints
