@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import styles from './page.module.css'
+import TopBar from '@/components/TopBar'
 import BottomNavBar from '@/components/BottomNavBar'
 import PointsSummary from '@/components/PointsSummary'
 import TodoPanel from '@/components/TodoPanel'
@@ -17,6 +18,7 @@ export default function Home() {
   const [todoPoints, setTodoPoints] = useState(0)
   const [studyPoints, setStudyPoints] = useState(0)
   const [notebookPoints, setNotebookPoints] = useState(0)
+  const [isLocked, setIsLocked] = useState(false)
 
   const togglePanel = (panel: PanelType) => {
     setVisiblePanels(prev =>
@@ -26,8 +28,16 @@ export default function Home() {
     )
   }
 
+  const totalPoints = todoPoints + studyPoints + notebookPoints
+
   return (
     <main className={styles.main}>
+      <TopBar
+        totalPoints={totalPoints}
+        isLocked={isLocked}
+        onToggleLock={() => setIsLocked(!isLocked)}
+      />
+      
       <PointsSummary
         todoPoints={todoPoints}
         studyPoints={studyPoints}
