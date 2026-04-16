@@ -1,0 +1,192 @@
+.panel {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  height: 500px;
+  overflow: hidden;
+}
+
+.header {
+  background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+  padding: 1rem;
+  color: #333;
+  font-weight: bold;
+  border-bottom: 2px solid #81C784;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.pointsBadge {
+  background: rgba(129, 199, 132, 0.3);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  color: #388E3C;
+  font-weight: bold;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #EEE;
+  background: #FAFAFA;
+}
+
+.tab {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.2s;
+  border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+  background: rgba(129, 199, 132, 0.2);
+}
+
+.tab.active {
+  color: #81C784;
+  border-bottom-color: #81C784;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.booksList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.bookItem {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.bookItem:hover {
+  transform: translateX(4px);
+}
+
+.bookPreview {
+  padding: 1rem;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+  border-left: 4px solid #81C784;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.bookPreview h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: bold;
+  color: #333;
+}
+
+.bookInfo {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.bookCategory {
+  background: rgba(129, 199, 132, 0.5);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #2E7D32;
+  font-weight: bold;
+}
+
+.bookPages {
+  color: #666;
+}
+
+.bookPoints {
+  margin-left: auto;
+  color: #4CAF50;
+  font-weight: bold;
+}
+
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.formGroup label {
+  font-weight: 500;
+  color: #333;
+  font-size: 14px;
+}
+
+.formGroup input,
+.formGroup select {
+  padding: 0.75rem;
+  border: 1px solid #DDD;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.formGroup input:focus,
+.formGroup select:focus {
+  outline: none;
+  border-color: #81C784;
+  box-shadow: 0 0 0 2px rgba(129, 199, 132, 0.2);
+}
+
+.pointsPreview {
+  padding: 0.75rem;
+  background: rgba(129, 199, 132, 0.1);
+  border-radius: 6px;
+  text-align: center;
+  color: #388E3C;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.submitBtn {
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #81C784 0%, #66BB6A 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.submitBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(129, 199, 132, 0.4);
+}
+
+.submitBtn:active {
+  transform: translateY(0);
+}

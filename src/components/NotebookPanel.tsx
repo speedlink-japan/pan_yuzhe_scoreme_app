@@ -3,22 +3,19 @@
 import React, { useState } from 'react'
 import styles from './NotebookPanel.module.css'
 
-interface Note {
+interface Memo {
   id: string
-  type: 'memo' | 'book'
   title: string
   content: string
   color: string
-  pageCount?: number
   createdAt: Date
   points: number
 }
 
 const NotebookPanel: React.FC = () => {
-  const [notes, setNotes] = useState<Note[]>([
+  const [memos, setMemos] = useState<Memo[]>([
     {
       id: '1',
-      type: 'memo',
       title: 'Sample Memo',
       content: 'This is a sample memo for testing.',
       color: '#FFB6C1',
@@ -27,53 +24,43 @@ const NotebookPanel: React.FC = () => {
     },
   ])
   const [activeTab, setActiveTab] = useState<'view' | 'add'>('view')
-  const [newNote, setNewNote] = useState<{
-    type: 'memo' | 'book'
+  const [newMemo, setNewMemo] = useState<{
     title: string
     content: string
     color: string
-    pageCount?: number
   }>({
-    type: 'memo',
     title: '',
     content: '',
     color: '#FFB6C1',
-    pageCount: 1,
   })
 
-  const addNote = () => {
-    if (newNote.title.trim() && newNote.content.trim()) {
-      const points = newNote.type === 'memo'
-        ? Math.floor(newNote.content.length / 10)
-        : newNote.pageCount! * 50
+  const addMemo = () => {
+    if (newMemo.title.trim() && newMemo.content.trim()) {
+      const points = Math.floor(newMemo.content.length / 10)
 
-      setNotes([
-        ...notes,
+      setMemos([
+        ...memos,
         {
           id: Date.now().toString(),
-          type: newNote.type,
-          title: newNote.title,
-          content: newNote.content,
-          color: newNote.color,
-          pageCount: newNote.pageCount,
+          title: newMemo.title,
+          content: newMemo.content,
+          color: newMemo.color,
           createdAt: new Date(),
           points,
         },
       ])
 
-      setNewNote({
-        type: 'memo',
+      setNewMemo({
         title: '',
         content: '',
         color: '#FFB6C1',
-        pageCount: 1,
       })
       setActiveTab('view')
     }
   }
 
   const calculateTotalPoints = () => {
-    return notes.reduce((sum, note) => sum + note.points, 0)
+    return memos.reduce((sum, memo) => sum + memo.points, 0)
   }
 
   return (
@@ -101,17 +88,17 @@ const NotebookPanel: React.FC = () => {
       <div className={styles.content}>
         {activeTab === 'view' ? (
           <div className={styles.notesList}>
-            {notes.map(note => (
-              <div key={note.id} className={styles.noteItem}>
+            {memos.map(memo => (
+              <div key={memo.id} className={styles.noteItem}>
                 <div
                   className={styles.notePreview}
-                  style={{ backgroundColor: note.color }}
+                  style={{ backgroundColor: memo.color }}
                 >
-                  <h4>{note.title}</h4>
-                  <p>{note.content.substring(0, 50)}...</p>
+                  <h4>{memo.title}</h4>
+                  <p>{memo.content.substring(0, 50)}...</p>
                   <div className={styles.noteInfo}>
-                    <span className={styles.noteType}>{note.type === 'memo' ? 'Memo' : 'Book'}</span>
-                    <span className={styles.notePoints}>+{note.points}pt</span>
+                    <span className={styles.noteType}>Memo</span>
+                    <span className={styles.notePoints}>+{memo.points}pt</span>
                   </div>
                 </div>
               </div>
@@ -120,66 +107,41 @@ const NotebookPanel: React.FC = () => {
         ) : (
           <div className={styles.addForm}>
             <div className={styles.formGroup}>
-              <label>Type:</label>
-              <select
-                value={newNote.type}
-                onChange={(e) => setNewNote({ ...newNote, type: e.target.value as 'memo' | 'book' })}
-              >
-                <option value="memo">Memo</option>
-                <option value="book">Book</option>
-              </select>
-            </div>
-
-            <div className={styles.formGroup}>
               <label>Title:</label>
               <input
                 type="text"
-                value={newNote.title}
-                onChange={(e) => setNewNote({ ...newNote, title: e.target.value })}
+                value={newMemo.title}
+                onChange={(e) => setNewMemo({ ...newMemo, title: e.target.value })}
                 placeholder="Enter title..."
               />
             </div>
 
-            {newNote.type === 'memo' && (
-              <div className={styles.formGroup}>
-                <label>Color:</label>
-                <div className={styles.colorPicker}>
-                  {['#FFB6C1', '#FFE4B5', '#E6E6FA', '#B0E0E6', '#90EE90'].map(color => (
-                    <button
-                      key={color}
-                      className={`${styles.colorOption} ${newNote.color === color ? styles.selected : ''}`}
-                      style={{ backgroundColor: color }}
-                      onClick={() => setNewNote({ ...newNote, color })}
-                    />
-                  ))}
-                </div>
+            <div className={styles.formGroup}>
+              <label>Color:</label>
+              <div className={styles.colorPicker}>
+                {['#FFB6C1', '#FFE4B5', '#E6E6FA', '#B0E0E6', '#90EE90'].map(color => (
+                  <button
+                    key={color}
+                    className={`${styles.colorOption} ${newMemo.color === color ? styles.selected : ''}`}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setNewMemo({ ...newMemo, color })}
+                  />
+                ))}
               </div>
-            )}
-
-            {newNote.type === 'book' && (
-              <div className={styles.formGroup}>
-                <label>Pages Read:</label>
-                <input
-                  type="number"
-                  value={newNote.pageCount}
-                  onChange={(e) => setNewNote({ ...newNote, pageCount: parseInt(e.target.value) || 1 })}
-                  min="1"
-                />
-              </div>
-            )}
+            </div>
 
             <div className={styles.formGroup}>
               <label>Content:</label>
               <textarea
-                value={newNote.content}
-                onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
-                placeholder="Write your note here..."
+                value={newMemo.content}
+                onChange={(e) => setNewMemo({ ...newMemo, content: e.target.value })}
+                placeholder="Write your memo here..."
                 rows={8}
               />
             </div>
 
-            <button onClick={addNote} className={styles.submitBtn}>
-              Save Note
+            <button onClick={addMemo} className={styles.submitBtn}>
+              Save Memo
             </button>
           </div>
         )}
