@@ -21,6 +21,8 @@ export interface PanelPosition {
   height: number
 }
 
+type LayoutMode = 'normal' | 'fullscreen'
+
 // デスクトップ用デフォルトレイアウト (1024px以上)
 // NotebookPanel（自由メモ）を中央に大型配置、周りに他のパネル配置
 const defaultPositionsPC: Record<PanelType, PanelPosition> = {
@@ -74,7 +76,8 @@ const defaultZIndices: Record<PanelType, number> = {
 const calculateDynamicLayout = (
   visiblePanels: PanelType[],
   viewportWidth: number,
-  topBarHeight: number = 50
+  topBarHeight: number = 50,
+  mode: LayoutMode = 'normal'
 ): Record<PanelType, PanelPosition> => {
   const panelCount = visiblePanels.length
   // 初期化：全パネルをデフォルト値で設定
@@ -84,6 +87,53 @@ const calculateDynamicLayout = (
     calendar: defaultPositionsPC.calendar,
     notebook: defaultPositionsPC.notebook,
     character: defaultPositionsPC.character,
+  }
+
+  // フルスクリーンモード：表示パネルのみで画面全体を埋める
+  if (mode === 'fullscreen' && visiblePanels.length > 0) {
+    const topBar = 50
+    const bottomBar = 65
+    const availableWidth = viewportWidth - 20
+    const availableHeight = window.innerHeight - topBar - bottomBar - 20
+    const gap = 10
+    const panelCount = visiblePanels.length
+
+    // グリッド計算
+    let columns = 1,
+      rows = 1
+    if (panelCount === 2) {
+      columns = 2
+      rows = 1
+    } else if (panelCount === 3) {
+      columns = 3
+      rows = 1
+    } else if (panelCount === 4) {
+      columns = 2
+      rows = 2
+    } else if (panelCount === 5) {
+      columns = 3
+      rows = 2
+    } else {
+      columns = Math.ceil(Math.sqrt(panelCount))
+      rows = Math.ceil(panelCount / columns)
+    }
+
+    const cellWidth = (availableWidth - gap * (columns - 1)) / columns
+    const cellHeight = (availableHeight - gap * (rows - 1)) / rows
+
+    let panelIndex = 0
+    for (const panel of visiblePanels) {
+      const col = panelIndex % columns
+      const row = Math.floor(panelIndex / columns)
+      layout[panel] = {
+        x: 10 + col * (cellWidth + gap),
+        y: topBar + 10 + row * (cellHeight + gap),
+        width: cellWidth,
+        height: cellHeight,
+      }
+      panelIndex++
+    }
+    return layout
   }
 
   // 計算用の定数
@@ -144,6 +194,7 @@ export default function Home() {
   const [panelZIndices, setPanelZIndicesState] = useState<Record<PanelType, number>>(defaultZIndices)
   const [isHydrated, setIsHydrated] = useState(false)
   const [autoLayoutMode, setAutoLayoutMode] = useState(true) // 動的レイアウトモードのフラグ
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('normal')
 
   // 初期化：ストレージからレイアウト状態を復元 & ウィンドウサイズ監視
   useEffect(() => {
@@ -162,7 +213,7 @@ export default function Home() {
         // 保存されたレイアウトがない場合は、初期表示パネルで動的レイアウトを使用
         const width = typeof window !== 'undefined' ? window.innerWidth : 1024
         const width1024 = width >= 1024 ? width : 1024
-        const dynamicLayout = calculateDynamicLayout(['calendar', 'notebook', 'character'], width1024)
+        const dynamicLayout = calculateDynamicLayout(['calendar', 'notebook', 'character'], width1024, 50, 'normal')
         setPanelPositionsState(dynamicLayout)
         setAutoLayoutMode(true) // 自動レイアウトON
       }
@@ -178,6 +229,17 @@ export default function Home() {
       saveLayoutState(isLocked, panelPositions, panelZIndices)
     }
   }, [isLocked, panelPositions, panelZIndices, isHydrated])
+
+  // layoutMode が変更されたときに動的レイアウトを再計算
+  useEffect(() => {
+    if (autoLayoutMode && isHydrated) {
+      const width = typeof window !== 'undefined' ? window.innerWidth : 1024
+      if (width >= 1024) {
+        const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, layoutMode)
+        setPanelPositionsState(dynamicLayout)
+      }
+    }
+  }, [layoutMode, autoLayoutMode, visiblePanels, isHydrated])
 
   const setIsLocked = (value: boolean) => {
     setIsLockedState(value)
@@ -204,7 +266,7 @@ export default function Home() {
       if (autoLayoutMode) {
         const width = typeof window !== 'undefined' ? window.innerWidth : 1024
         if (width >= 1024) {
-          const dynamicLayout = calculateDynamicLayout(newVisiblePanels, width)
+          const dynamicLayout = calculateDynamicLayout(newVisiblePanels, width, 50, layoutMode)
           setPanelPositions(dynamicLayout)
         }
       }
@@ -238,7 +300,7 @@ export default function Home() {
     
     if (width >= 1024) {
       // PC版：動的レイアウトを使用
-      const dynamicLayout = calculateDynamicLayout(visiblePanels, width)
+      const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, layoutMode)
       setPanelPositionsState(dynamicLayout)
     } else {
       // タブレット・モバイル版：デフォルトレイアウトを使用
@@ -329,6 +391,8 @@ export default function Home() {
         isLocked={isLocked}
         onToggleLock={() => setIsLocked(!isLocked)}
         onReset={handleReset}
+        layoutMode={layoutMode}
+        onToggleFullscreen={() => setLayoutMode(layoutMode === 'normal' ? 'fullscreen' : 'normal')}
       />
     </main>
   )

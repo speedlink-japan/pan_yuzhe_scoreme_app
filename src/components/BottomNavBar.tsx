@@ -11,6 +11,8 @@ interface BottomNavBarProps {
   isLocked: boolean
   onToggleLock: () => void
   onReset: () => void
+  layoutMode: 'normal' | 'fullscreen'
+  onToggleFullscreen: () => void
 }
 
 const BottomNavBar: React.FC<BottomNavBarProps> = ({ 
@@ -19,6 +21,8 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({
   isLocked,
   onToggleLock,
   onReset,
+  layoutMode,
+  onToggleFullscreen,
 }) => {
   const panels: { id: PanelType; label: string; icon: string }[] = [
     { id: 'todo', label: 'TODO', icon: '✓' },
@@ -55,12 +59,21 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({
 
       <div className={styles.controlButtons}>
         <button
+          className={`${styles.controlButton} ${styles.fullscreenButton} ${layoutMode === 'fullscreen' ? styles.active : ''}`}
+          onClick={onToggleFullscreen}
+          title={layoutMode === 'fullscreen' ? 'クリックして通常表示' : 'クリックしてフルスクリーン'}
+        >
+          🖥️
+        </button>
+
+        <button
           className={`${styles.controlButton} ${styles.lockButton} ${isLocked ? styles.locked : ''}`}
           onClick={onToggleLock}
           title={isLocked ? 'クリックして配置を調整' : 'クリックして固定'}
         >
           {isLocked ? '🔒' : '🔓'}
         </button>
+
         <button
           className={`${styles.controlButton} ${styles.resetButton}`}
           onClick={handleReset}
