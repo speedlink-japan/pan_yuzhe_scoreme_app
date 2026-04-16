@@ -183,8 +183,9 @@
 }
 
 .submitBtn:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.02);
   box-shadow: 0 4px 12px rgba(129, 199, 132, 0.4);
+  animation: scaleIn 0.3s ease-out;
 }
 
 .submitBtn:active {

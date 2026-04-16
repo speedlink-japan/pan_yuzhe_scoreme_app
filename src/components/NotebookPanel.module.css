@@ -179,6 +179,7 @@
 
 .colorOption:hover {
   transform: scale(1.1);
+  animation: pulse 0.4s ease-in-out;
 }
 
 .colorOption.selected {
@@ -198,6 +199,7 @@
 }
 
 .submitBtn:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.05);
   box-shadow: 0 4px 12px rgba(255, 217, 102, 0.3);
+  animation: scaleIn 0.3s ease-out;
 }

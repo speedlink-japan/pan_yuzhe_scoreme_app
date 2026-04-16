@@ -30,6 +30,7 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   max-width: 400px;
   text-align: center;
+  animation: scaleIn 0.3s ease-out;
 }
 
 .modalContent h3 {
@@ -67,12 +68,15 @@
 .outfitBtn:hover {
   border-color: #FF69B4;
   background: #FFF0F5;
+  transform: scale(1.05);
+  animation: pulse 0.4s ease-in-out;
 }
 
 .outfitBtn.selected {
   border-color: #FF1493;
   background: linear-gradient(135deg, #FFB6C1 0%, #FFC0CB 100%);
   color: white;
+  animation: scaleIn 0.3s ease-out;
 }
 
 .outfitEmoji {
@@ -112,8 +116,9 @@
 }
 
 .confirmBtn:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) scale(1.02);
   box-shadow: 0 4px 12px rgba(163, 228, 215, 0.3);
+  animation: scaleIn 0.3s ease-out;
 }
 
 .header {
