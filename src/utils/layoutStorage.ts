@@ -7,17 +7,20 @@ interface StorageState {
   version: string
   isLocked: boolean
   panelPositions: Record<string, PanelPosition>
+  panelZIndices?: Record<string, number>
 }
 
 export const saveLayoutState = (
   isLocked: boolean,
-  panelPositions: Record<string, PanelPosition>
+  panelPositions: Record<string, PanelPosition>,
+  panelZIndices?: Record<string, number>
 ) => {
   try {
     const state: StorageState = {
       version: STORAGE_VERSION,
       isLocked,
       panelPositions,
+      panelZIndices,
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   } catch (error) {

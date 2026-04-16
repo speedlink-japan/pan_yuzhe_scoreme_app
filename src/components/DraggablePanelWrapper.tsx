@@ -15,14 +15,18 @@ interface DraggablePanelWrapperProps {
   children: ReactNode
   initialState: DragResizeState
   isLocked: boolean
+  zIndex: number
   onPositionChange?: (state: DragResizeState) => void
+  onBringToFront?: () => void
 }
 
 const DraggablePanelWrapper: React.FC<DraggablePanelWrapperProps> = ({
   children,
   initialState,
   isLocked,
+  zIndex,
   onPositionChange,
+  onBringToFront,
 }) => {
   const { position, handleMouseDown, isDragging, isResizing } = useDragResize(
     initialState,
@@ -46,7 +50,9 @@ const DraggablePanelWrapper: React.FC<DraggablePanelWrapperProps> = ({
         top: `${position.y}px`,
         width: `${position.width}px`,
         height: `${position.height}px`,
+        zIndex: zIndex,
       }}
+      onClick={onBringToFront}
     >
       <div
         className={styles.dragHandle}

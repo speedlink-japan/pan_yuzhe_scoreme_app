@@ -29,6 +29,14 @@ const defaultPositions: Record<PanelType, PanelPosition> = {
   character: { x: 730, y: 630, width: 340, height: 280 },
 }
 
+const defaultZIndices: Record<PanelType, number> = {
+  todo: 10,
+  study: 11,
+  calendar: 12,
+  notebook: 13,
+  character: 14,
+}
+
 export default function Home() {
   const [visiblePanels, setVisiblePanels] = useState<PanelType[]>(['calendar', 'notebook', 'character'])
   const [todoPoints, setTodoPoints] = useState(0)
@@ -36,6 +44,7 @@ export default function Home() {
   const [notebookPoints, setNotebookPoints] = useState(0)
   const [isLocked, setIsLockedState] = useState(false)
   const [panelPositions, setPanelPositionsState] = useState<Record<PanelType, PanelPosition>>(defaultPositions)
+  const [panelZIndices, setPanelZIndicesState] = useState<Record<PanelType, number>>(defaultZIndices)
   const [isHydrated, setIsHydrated] = useState(false)
 
   // 初期化：ストレージからレイアウト状態を復元
@@ -44,6 +53,9 @@ export default function Home() {
     if (saved) {
       setIsLockedState(saved.isLocked)
       setPanelPositionsState(saved.panelPositions as Record<PanelType, PanelPosition>)
+      if (saved.panelZIndices) {
+        setPanelZIndicesState(saved.panelZIndices as Record<PanelType, number>)
+      }
     }
     setIsHydrated(true)
   }, [])
@@ -51,9 +63,9 @@ export default function Home() {
   // レイアウト状態が変更されたときに保存
   useEffect(() => {
     if (isHydrated) {
-      saveLayoutState(isLocked, panelPositions)
+      saveLayoutState(isLocked, panelPositions, panelZIndices)
     }
-  }, [isLocked, panelPositions, isHydrated])
+  }, [isLocked, panelPositions, panelZIndices, isHydrated])
 
   const setIsLocked = (value: boolean) => {
     setIsLockedState(value)
@@ -85,6 +97,21 @@ export default function Home() {
     }))
   }
 
+  const handleBringToFront = (panelId: PanelType) => {
+    setPanelZIndicesState(prev => {
+      const currentIndices = { ...prev }
+      const maxZ = Math.max(...Object.values(currentIndices))
+      currentIndices[panelId] = maxZ + 1
+      return currentIndices
+    })
+  }
+
+  const handleReset = () => {
+    setPanelPositionsState(defaultPositions)
+    setPanelZIndicesState(defaultZIndices)
+    setIsLockedState(false)
+  }
+
   const totalPoints = todoPoints + studyPoints + notebookPoints
 
   return (
@@ -96,6 +123,7 @@ export default function Home() {
         notebookPoints={notebookPoints}
         isLocked={isLocked}
         onToggleLock={() => setIsLocked(!isLocked)}
+        onReset={handleReset}
       />
 
       <div className={styles.dashboardContainer}>
@@ -103,7 +131,9 @@ export default function Home() {
           <DraggablePanelWrapper
             initialState={panelPositions.todo}
             isLocked={isLocked}
+            zIndex={panelZIndices.todo}
             onPositionChange={(pos) => handlePositionChange('todo', pos)}
+            onBringToFront={() => handleBringToFront('todo')}
           >
             <TodoPanel onPointsChange={setTodoPoints} />
           </DraggablePanelWrapper>
@@ -113,7 +143,9 @@ export default function Home() {
           <DraggablePanelWrapper
             initialState={panelPositions.study}
             isLocked={isLocked}
+            zIndex={panelZIndices.study}
             onPositionChange={(pos) => handlePositionChange('study', pos)}
+            onBringToFront={() => handleBringToFront('study')}
           >
             <StudyPanel onPointsChange={setStudyPoints} />
           </DraggablePanelWrapper>
@@ -123,7 +155,9 @@ export default function Home() {
           <DraggablePanelWrapper
             initialState={panelPositions.calendar}
             isLocked={isLocked}
+            zIndex={panelZIndices.calendar}
             onPositionChange={(pos) => handlePositionChange('calendar', pos)}
+            onBringToFront={() => handleBringToFront('calendar')}
           >
             <CalendarPanel />
           </DraggablePanelWrapper>
@@ -133,7 +167,9 @@ export default function Home() {
           <DraggablePanelWrapper
             initialState={panelPositions.notebook}
             isLocked={isLocked}
+            zIndex={panelZIndices.notebook}
             onPositionChange={(pos) => handlePositionChange('notebook', pos)}
+            onBringToFront={() => handleBringToFront('notebook')}
           >
             <NotebookPanel onPointsChange={setNotebookPoints} />
           </DraggablePanelWrapper>
@@ -143,7 +179,9 @@ export default function Home() {
           <DraggablePanelWrapper
             initialState={panelPositions.character}
             isLocked={isLocked}
+            zIndex={panelZIndices.character}
             onPositionChange={(pos) => handlePositionChange('character', pos)}
+            onBringToFront={() => handleBringToFront('character')}
           >
             <CharacterPanel />
           </DraggablePanelWrapper>

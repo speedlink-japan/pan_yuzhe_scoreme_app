@@ -10,6 +10,7 @@ interface TopBarProps {
   notebookPoints: number
   isLocked: boolean
   onToggleLock: () => void
+  onReset: () => void
 }
 
 const TopBar: React.FC<TopBarProps> = ({
@@ -19,7 +20,16 @@ const TopBar: React.FC<TopBarProps> = ({
   notebookPoints,
   isLocked,
   onToggleLock,
+  onReset,
 }) => {
+  const handleReset = () => {
+    if (
+      typeof window !== 'undefined' &&
+      window.confirm('レイアウトをリセットしてもよろしいですか？サイズと位置がリセットされます。')
+    ) {
+      onReset()
+    }
+  }
   return (
     <header className={styles.topbar}>
       <div className={styles.brand}>
@@ -68,6 +78,15 @@ const TopBar: React.FC<TopBarProps> = ({
       >
         {isLocked ? '🔒' : '🔓'}
         <span className={styles.buttonLabel}>{isLocked ? 'ロック中' : '調整'}</span>
+      </button>
+
+      <button
+        className={styles.resetButton}
+        onClick={handleReset}
+        title="レイアウトをリセット"
+      >
+        🔄
+        <span className={styles.buttonLabel}>リセット</span>
       </button>
     </header>
   )
