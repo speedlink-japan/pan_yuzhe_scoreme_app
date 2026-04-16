@@ -1,0 +1,405 @@
+.panel {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  height: 600px;
+  overflow: hidden;
+}
+
+.header {
+  background: linear-gradient(135deg, #FFB6D9 0%, #FFC0D9 100%);
+  padding: 1rem;
+  color: white;
+  font-weight: bold;
+  border-bottom: 2px solid #FFB6D9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.pointsBadge {
+  background: rgba(255, 255, 255, 0.3);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #EEE;
+  background: #FAFAFA;
+}
+
+.tab {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.2s;
+  border-bottom: 2px solid transparent;
+}
+
+.tab:hover {
+  background: rgba(255, 182, 217, 0.1);
+}
+
+.tab.active {
+  color: #FFB6D9;
+  border-bottom-color: #FFB6D9;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.inputGroup {
+  display: flex;
+  gap: 8px;
+}
+
+.input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #FFB6D9;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #FFB6D9;
+  box-shadow: 0 0 0 2px rgba(255, 182, 217, 0.1);
+}
+
+.select {
+  padding: 8px 12px;
+  border: 1px solid #FFB6D9;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+}
+
+.select:focus {
+  outline: none;
+  border-color: #FFB6D9;
+  box-shadow: 0 0 0 2px rgba(255, 182, 217, 0.1);
+}
+
+.addBtn {
+  padding: 8px 12px;
+  background: #FFB6D9;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.addBtn:hover {
+  background: #A3E4D7;
+  transform: scale(1.05);
+}
+
+.submitBtn {
+  padding: 8px 16px;
+  background: #FFB6D9;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.submitBtn:hover {
+  background: #FF99C8;
+}
+
+.todoList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.todoItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  background: #F0F8F6;
+  border-radius: 6px;
+  border-left: 3px solid #FFB6D9;
+}
+
+.todoContent {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.checkbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  accent-color: #FFB6D9;
+}
+
+.text {
+  flex: 1;
+  font-size: 14px;
+  color: #333;
+}
+
+.text.completed {
+  text-decoration: line-through;
+  color: #999;
+}
+
+.difficulty {
+  font-size: 12px;
+  background: rgba(255, 182, 217, 0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #FFB6D9;
+  font-weight: bold;
+}
+
+.pointsSection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.points {
+  font-size: 12px;
+  color: #FFB6D9;
+  font-weight: bold;
+}
+
+.deleteBtn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.2s;
+}
+
+.deleteBtn:hover {
+  color: #A3E4D7;
+  transform: scale(1.2);
+}
+
+.projectContent {
+  flex: 1;
+}
+
+.projectContent h4 {
+  margin: 0 0 8px 0;
+  color: #FFB6D9;
+  font-size: 14px;
+}
+
+.milestone {
+  margin-bottom: 12px;
+  padding-left: 8px;
+  border-left: 2px solid #FFB6D9;
+}
+
+.milestoneName {
+  font-size: 12px;
+  color: #FF99C8;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.stepCheckbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #FFB6D9;
+}
+
+.stepText {
+  color: #666;
+}
+
+.stepText.completed {
+  text-decoration: line-through;
+  color: #999;
+}
+
+.createForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.formSection {
+  background: #FFF0F5;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #FFB6D9;
+}
+
+.formSection h3 {
+  margin: 0 0 12px 0;
+  color: #FFB6D9;
+  font-size: 14px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pointsInfo {
+  margin: 8px 0 0 0;
+  font-size: 11px;
+  color: #999;
+  background: rgba(255, 182, 217, 0.1);
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.milestoneSection {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: rgba(255, 182, 217, 0.05);
+  border-radius: 6px;
+  border: 1px dashed #FFB6D9;
+}
+
+.milestoneSection h4 {
+  margin: 0 0 12px 0;
+  color: #FFB6D9;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.milestoneForm {
+  margin-bottom: 12px;
+  padding: 10px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #FFB6D9;
+}
+
+.milestoneHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.milestoneName {
+  font-weight: bold;
+  color: #FFB6D9;
+  font-size: 13px;
+}
+
+.stepsForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.stepForm {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.stepInput {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #FFB6D9;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.stepInput:focus {
+  outline: none;
+  border-color: #FFB6D9;
+  box-shadow: 0 0 0 2px rgba(255, 182, 217, 0.1);
+}
+
+.addStepForm {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #FFB6D9;
+}
+
+.addStepForm .input {
+  flex: 1;
+}
+
+.addMilestoneForm {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.addMilestoneForm .input {
+  flex: 1;
+}
+
+.removeBtn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: #FFB6D9;
+  color: white;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.removeBtn:hover {
+  background: #FF99C8;
+  transform: scale(1.1);
+}

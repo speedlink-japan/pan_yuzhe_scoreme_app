@@ -1,0 +1,105 @@
+.navbar {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.7);
+  border-top: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 -2px 15px rgba(0, 0, 0, 0.08);
+  padding: 10px 0;
+  gap: 10px;
+  backdrop-filter: blur(10px);
+}
+
+.navItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.5);
+  border: none;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  color: #666;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.navItem:hover {
+  background: rgba(255, 255, 255, 0.8);
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.navItem.active {
+  border: none;
+  transform: scale(1.05);
+}
+
+.icon {
+  font-size: 20px;
+  display: block;
+  line-height: 1;
+}
+
+.label {
+  font-size: 9px;
+  white-space: nowrap;
+  line-height: 1;
+  max-width: 50px;
+  text-align: center;
+}
+
+/* パネルカラー定義 */
+.todo {
+  background: rgba(255, 182, 217, 0.15);
+  border: none;
+  color: #C85A99;
+}
+
+.todo.active {
+  background: #FFB6D9;
+  color: white;
+  box-shadow: 0 4px 12px rgba(255, 182, 217, 0.5);
+}
+
+.calendar {
+  background: rgba(179, 217, 255, 0.15);
+  border: none;
+  color: #6B9FC8;
+}
+
+.calendar.active {
+  background: linear-gradient(135deg, #B3D9FF 0%, #D4E8FF 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(179, 217, 255, 0.5);
+}
+
+.notebook {
+  background: rgba(255, 230, 163, 0.15);
+  border: none;
+  color: #CC8800;
+}
+
+.notebook.active {
+  background: linear-gradient(135deg, #FFF4D4 0%, #FFE6A3 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(255, 217, 102, 0.5);
+}
+
+.character {
+  background: rgba(163, 228, 215, 0.15);
+  border: none;
+  color: #4A9B8E;
+}
+
+.character.active {
+  background: #A3E4D7;
+  color: white;
+  box-shadow: 0 4px 12px rgba(163, 228, 215, 0.5);
+}
