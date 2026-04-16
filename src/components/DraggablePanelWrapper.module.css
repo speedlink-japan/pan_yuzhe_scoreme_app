@@ -71,6 +71,10 @@
   color: #FF6B9D;
 }
 
+.fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
 /* User select を無効化してドラッグ時のテキスト選択を防ぐ */
 .wrapper.dragging *,
 .wrapper.resizing * {

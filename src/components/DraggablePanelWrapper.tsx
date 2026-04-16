@@ -1,6 +1,6 @@
 'use client'
 
-import React, { ReactNode } from 'react'
+import React, { ReactNode, useState, useEffect } from 'react'
 import styles from './DraggablePanelWrapper.module.css'
 import { useDragResize } from '@/hooks/useDragResize'
 
@@ -29,12 +29,18 @@ const DraggablePanelWrapper: React.FC<DraggablePanelWrapperProps> = ({
     isLocked,
     onPositionChange
   )
+  const [isVisible, setIsVisible] = useState(false)
+
+  // マウント時にアニメーションを実行
+  useEffect(() => {
+    setIsVisible(true)
+  }, [])
 
   return (
     <div
       className={`${styles.wrapper} ${isDragging ? styles.dragging : ''} ${
         isResizing ? styles.resizing : ''
-      } ${isLocked ? styles.locked : ''}`}
+      } ${isLocked ? styles.locked : ''} ${isVisible ? styles.fadeIn : ''}`}
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
