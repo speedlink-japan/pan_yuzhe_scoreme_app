@@ -21,13 +21,45 @@ export interface PanelPosition {
   height: number
 }
 
-const defaultPositions: Record<PanelType, PanelPosition> = {
-  todo: { x: 20, y: 160, width: 350, height: 450 },
-  study: { x: 390, y: 160, width: 320, height: 300 },
-  calendar: { x: 730, y: 160, width: 340, height: 450 },
-  notebook: { x: 390, y: 480, width: 320, height: 300 },
-  character: { x: 730, y: 630, width: 340, height: 280 },
+// デスクトップ用デフォルトレイアウト (1024px以上)
+const defaultPositionsPC: Record<PanelType, PanelPosition> = {
+  todo: { x: 20, y: 160, width: 380, height: 480 },
+  calendar: { x: 420, y: 160, width: 380, height: 480 },
+  study: { x: 820, y: 160, width: 360, height: 320 },
+  notebook: { x: 420, y: 660, width: 380, height: 320 },
+  character: { x: 820, y: 490, width: 360, height: 290 },
 }
+
+// タブレット用デフォルトレイアウト (600-1024px)
+const defaultPositionsTablet: Record<PanelType, PanelPosition> = {
+  todo: { x: 10, y: 160, width: 320, height: 400 },
+  calendar: { x: 340, y: 160, width: 320, height: 400 },
+  study: { x: 10, y: 570, width: 320, height: 300 },
+  notebook: { x: 340, y: 570, width: 320, height: 300 },
+  character: { x: 10, y: 880, width: 650, height: 280 },
+}
+
+// モバイル用デフォルトレイアウト (600px以下)
+const defaultPositionsMobile: Record<PanelType, PanelPosition> = {
+  todo: { x: 10, y: 160, width: 300, height: 350 },
+  calendar: { x: 10, y: 520, width: 300, height: 350 },
+  study: { x: 10, y: 880, width: 300, height: 280 },
+  notebook: { x: 10, y: 1170, width: 300, height: 300 },
+  character: { x: 10, y: 1480, width: 300, height: 250 },
+}
+
+// 画面幅に応じてレイアウトを選択
+const getDefaultLayout = (width: number): Record<PanelType, PanelPosition> => {
+  if (width >= 1024) {
+    return defaultPositionsPC
+  } else if (width >= 600) {
+    return defaultPositionsTablet
+  } else {
+    return defaultPositionsMobile
+  }
+}
+
+const defaultPositions = defaultPositionsPC
 
 const defaultZIndices: Record<PanelType, number> = {
   todo: 10,
@@ -47,16 +79,26 @@ export default function Home() {
   const [panelZIndices, setPanelZIndicesState] = useState<Record<PanelType, number>>(defaultZIndices)
   const [isHydrated, setIsHydrated] = useState(false)
 
-  // 初期化：ストレージからレイアウト状態を復元
+  // 初期化：ストレージからレイアウト状態を復元 & ウィンドウサイズ監視
   useEffect(() => {
-    const saved = loadLayoutState()
-    if (saved) {
-      setIsLockedState(saved.isLocked)
-      setPanelPositionsState(saved.panelPositions as Record<PanelType, PanelPosition>)
-      if (saved.panelZIndices) {
-        setPanelZIndicesState(saved.panelZIndices as Record<PanelType, number>)
+    // HTMLドキュメント初期化時に正しいレイアウトを使用
+    const initializeLayout = () => {
+      // ストレージからレイアウト状態を復元
+      const saved = loadLayoutState()
+      if (saved) {
+        setIsLockedState(saved.isLocked)
+        setPanelPositionsState(saved.panelPositions as Record<PanelType, PanelPosition>)
+        if (saved.panelZIndices) {
+          setPanelZIndicesState(saved.panelZIndices as Record<PanelType, number>)
+        }
+      } else {
+        // 保存されたレイアウトがない場合は、画面幅に応じたデフォルトレイアウトを使用
+        const width = typeof window !== 'undefined' ? window.innerWidth : 1024
+        setPanelPositionsState(getDefaultLayout(width))
       }
     }
+
+    initializeLayout()
     setIsHydrated(true)
   }, [])
 
@@ -107,7 +149,9 @@ export default function Home() {
   }
 
   const handleReset = () => {
-    setPanelPositionsState(defaultPositions)
+    // 現在のウィンドウサイズに基づいてデフォルトレイアウトを取得
+    const width = typeof window !== 'undefined' ? window.innerWidth : 1024
+    setPanelPositionsState(getDefaultLayout(width))
     setPanelZIndicesState(defaultZIndices)
     setIsLockedState(false)
   }
