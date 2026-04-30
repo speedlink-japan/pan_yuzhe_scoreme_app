@@ -262,12 +262,25 @@ export default function Home() {
         ? prev.filter(p => p !== panel)
         : [...prev, panel]
       
-      // 自動レイアウトモードがONの場合、新しいパネル構成で動的レイアウトを適用
-      if (autoLayoutMode) {
-        const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-        if (width >= 1024) {
+      const width = typeof window !== 'undefined' ? window.innerWidth : 1024
+      
+      if (width >= 1024) {
+        // フルスクリーンモード：新しいパネル構成で全体を再レイアウト
+        if (layoutMode === 'fullscreen') {
           const dynamicLayout = calculateDynamicLayout(newVisiblePanels, width, 50, layoutMode)
           setPanelPositions(dynamicLayout)
+        } else {
+          // 通常モード：新規パネルのみデフォルト位置に配置、既存パネルは保持
+          const isNew = !prev.includes(panel)
+          if (isNew) {
+            // 新規パネルをデフォルト位置に追加
+            const defaultLayout = getDefaultLayout(width)
+            setPanelPositions(prevPos => ({
+              ...prevPos,
+              [panel]: defaultLayout[panel],
+            }))
+          }
+          // パネル削除の場合は状態変更のみ（既存パネルのレイアウト保持）
         }
       }
 
@@ -297,11 +310,49 @@ export default function Home() {
   const handleReset = () => {
     // 現在のウィンドウサイズに基づいてデフォルトレイアウトを適用
     const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-    
-    // 画面サイズに応じたデフォルトレイアウトを取得して適用
+    const height = typeof window !== 'undefined' ? window.innerHeight : 768
+    const topBarHeight = 50
+    const bottomBarHeight = 65
+
     const resetLayout = getDefaultLayout(width)
-    setPanelPositionsState(resetLayout)
-    
+
+    // パネルグループの外接矩形を計算
+    let minX = Infinity,
+      maxX = -Infinity
+    let minY = Infinity,
+      maxY = -Infinity
+
+    Object.values(resetLayout).forEach((pos) => {
+      minX = Math.min(minX, pos.x)
+      maxX = Math.max(maxX, pos.x + pos.width)
+      minY = Math.min(minY, pos.y)
+      maxY = Math.max(maxY, pos.y + pos.height)
+    })
+
+    const panelGroupWidth = maxX - minX
+    const panelGroupHeight = maxY - minY
+
+    const availableWidth = width - 20
+    const availableHeight = height - topBarHeight - bottomBarHeight - 20
+
+    // 中央寄せのオフセットを計算
+    const centerOffsetX = (availableWidth - panelGroupWidth) / 2
+    const centerOffsetY = topBarHeight + (availableHeight - panelGroupHeight) / 2
+
+    // すべてのパネルの位置を調整
+    const centeredLayout = Object.entries(resetLayout).reduce(
+      (acc, [key, pos]) => {
+        acc[key as PanelType] = {
+          ...pos,
+          x: pos.x - minX + Math.max(10, centerOffsetX),
+          y: pos.y - minY + Math.max(topBarHeight + 10, centerOffsetY),
+        }
+        return acc
+      },
+      {} as Record<PanelType, PanelPosition>
+    )
+
+    setPanelPositionsState(centeredLayout)
     setPanelZIndicesState(defaultZIndices)
     setIsLockedState(false)
     setAutoLayoutMode(true)
@@ -327,6 +378,7 @@ export default function Home() {
             zIndex={panelZIndices.todo}
             onPositionChange={(pos) => handlePositionChange('todo', pos)}
             onBringToFront={() => handleBringToFront('todo')}
+            layoutMode={layoutMode}
           >
             <TodoPanel onPointsChange={setTodoPoints} />
           </DraggablePanelWrapper>
@@ -339,6 +391,7 @@ export default function Home() {
             zIndex={panelZIndices.study}
             onPositionChange={(pos) => handlePositionChange('study', pos)}
             onBringToFront={() => handleBringToFront('study')}
+            layoutMode={layoutMode}
           >
             <StudyPanel onPointsChange={setStudyPoints} />
           </DraggablePanelWrapper>
@@ -351,6 +404,7 @@ export default function Home() {
             zIndex={panelZIndices.calendar}
             onPositionChange={(pos) => handlePositionChange('calendar', pos)}
             onBringToFront={() => handleBringToFront('calendar')}
+            layoutMode={layoutMode}
           >
             <CalendarPanel />
           </DraggablePanelWrapper>
@@ -363,6 +417,7 @@ export default function Home() {
             zIndex={panelZIndices.notebook}
             onPositionChange={(pos) => handlePositionChange('notebook', pos)}
             onBringToFront={() => handleBringToFront('notebook')}
+            layoutMode={layoutMode}
           >
             <NotebookPanel onPointsChange={setNotebookPoints} />
           </DraggablePanelWrapper>
@@ -375,6 +430,7 @@ export default function Home() {
             zIndex={panelZIndices.character}
             onPositionChange={(pos) => handlePositionChange('character', pos)}
             onBringToFront={() => handleBringToFront('character')}
+            layoutMode={layoutMode}
           >
             <CharacterPanel />
           </DraggablePanelWrapper>
