@@ -216,11 +216,10 @@ export default function Home() {
         }
 
       } else {
-        // 保存されたレイアウトがない場合は、初期表示パネルで動的レイアウトを使用
+        // 保存されたレイアウトがない場合は、デフォルトレイアウトを使用
         const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-        const width1024 = width >= 1024 ? width : 1024
-        const dynamicLayout = calculateDynamicLayout(['calendar', 'notebook', 'character'], width1024, 50, 'normal')
-        setPanelPositionsState(dynamicLayout)
+        const defaultLayout = getDefaultLayout(width)
+        setPanelPositionsState(defaultLayout)
       }
     }
 
@@ -238,20 +237,16 @@ export default function Home() {
   // layoutMode が変更されたときに動的レイアウトを再計算
   useEffect(() => {
     if (isHydrated) {
-      // フルスクリーンから通常モードに戻る場合は、自動レイアウト計算をスキップ
-      const isRestoringFromFullscreen = prevLayoutModeRef.current === 'fullscreen' && layoutMode === 'normal'
+      const isEnteringFullscreen = prevLayoutModeRef.current === 'normal' && layoutMode === 'fullscreen'
       
-      // フルスクリーンモード時は自動計算をスキップ（ユーザー調整レイアウトを保持）
-      // フルスクリーン→通常への復帰時も自動計算をスキップ（バックアップから復元）
-      const shouldSkipCalculation = layoutMode === 'fullscreen' || isRestoringFromFullscreen
-      
-      if (!shouldSkipCalculation) {
+      // フルスクリーンに入る時：フルスクリーン用のグリッドレイアウトを計算
+      if (isEnteringFullscreen) {
         const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-        if (width >= 1024) {
-          const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, layoutMode)
-          setPanelPositionsState(dynamicLayout)
-        }
+        const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, 'fullscreen')
+        setPanelPositionsState(dynamicLayout)
       }
+      // フルスクリーンから戻る時：バックアップから復元されているのでスキップ
+      // それ以外：自動計算しない（ユーザーが調整したレイアウトを保持）
       
       // 参照を更新
       prevLayoutModeRef.current = layoutMode
