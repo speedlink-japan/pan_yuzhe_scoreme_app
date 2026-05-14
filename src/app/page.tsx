@@ -68,8 +68,6 @@ const getDefaultLayout = (width: number): Record<PanelType, PanelPosition> => {
   }
 }
 
-const defaultPositions = defaultPositionsPC
-
 const defaultZIndices: Record<PanelType, number> = {
   todo: 10,
   study: 11,
@@ -196,7 +194,7 @@ export default function Home() {
   const [studyPoints, setStudyPoints] = useState(0)
   const [notebookPoints, setNotebookPoints] = useState(0)
   const [isLocked, setIsLockedState] = useState(false)
-  const [panelPositions, setPanelPositionsState] = useState<Record<PanelType, PanelPosition>>(defaultPositions)
+  const [panelPositions, setPanelPositionsState] = useState<Record<PanelType, PanelPosition>>(defaultPositionsPC)
   const [panelZIndices, setPanelZIndicesState] = useState<Record<PanelType, number>>(defaultZIndices)
   const [isHydrated, setIsHydrated] = useState(false)
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('normal')
@@ -216,7 +214,7 @@ export default function Home() {
         }
 
       } else {
-        // 保存されたレイアウトがない場合は、デフォルトレイアウトを使用
+        // 保存されたレイアウトがない場合は、ウィンドウサイズに応じたデフォルトレイアウトを使用
         const width = typeof window !== 'undefined' ? window.innerWidth : 1024
         const defaultLayout = getDefaultLayout(width)
         setPanelPositionsState(defaultLayout)
