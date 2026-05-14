@@ -232,7 +232,7 @@ export default function Home() {
     }
   }, [isLocked, panelPositions, panelZIndices, isHydrated])
 
-  // layoutMode が変更されたときに動的レイアウトを再計算
+  // layoutMode または visiblePanels が変更されたときに動的レイアウトを再計算
   useEffect(() => {
     if (isHydrated) {
       const isEnteringFullscreen = prevLayoutModeRef.current === 'normal' && layoutMode === 'fullscreen'
@@ -242,9 +242,14 @@ export default function Home() {
         const width = typeof window !== 'undefined' ? window.innerWidth : 1024
         const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, 'fullscreen')
         setPanelPositionsState(dynamicLayout)
+      } else if (layoutMode === 'fullscreen') {
+        // フルスクリーン中にパネルON/OFFされた場合：グリッドレイアウトを再計算
+        const width = typeof window !== 'undefined' ? window.innerWidth : 1024
+        const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, 'fullscreen')
+        setPanelPositionsState(dynamicLayout)
       }
       // フルスクリーンから戻る時：バックアップから復元されているのでスキップ
-      // それ以外：自動計算しない（ユーザーが調整したレイアウトを保持）
+      // 通常モード中の visiblePanels 変更：自動計算しない（ユーザーが調整したレイアウトを保持）
       
       // 参照を更新
       prevLayoutModeRef.current = layoutMode
