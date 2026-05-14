@@ -274,21 +274,18 @@ export default function Home() {
         ? prev.filter(p => p !== panel)
         : [...prev, panel]
       
-      const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-      
-      if (width >= 1024) {
-        // 新規パネル追加の場合のみ、デフォルト位置に配置
-        const isNew = !prev.includes(panel)
-        if (isNew) {
-          // 新規パネルをデフォルト位置に追加
-          const defaultLayout = getDefaultLayout(width)
-          setPanelPositions(prevPos => ({
-            ...prevPos,
-            [panel]: defaultLayout[panel],
-          }))
-        }
-        // パネル削除の場合は状態変更のみ（既存パネルのレイアウト保持）
+      // 新規パネル追加の場合のみ、デフォルト位置に配置
+      const isNew = !prev.includes(panel)
+      if (isNew) {
+        // 新規パネルをデフォルト位置に追加
+        const width = typeof window !== 'undefined' ? window.innerWidth : 1024
+        const defaultLayout = getDefaultLayout(width)
+        setPanelPositions(prevPos => ({
+          ...prevPos,
+          [panel]: defaultLayout[panel],
+        }))
       }
+      // パネル削除の場合は状態変更のみ（既存パネルのレイアウト保持）
 
       return newVisiblePanels
     })
