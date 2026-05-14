@@ -191,7 +191,7 @@ const calculateDynamicLayout = (
 }
 
 export default function Home() {
-  const [visiblePanels, setVisiblePanels] = useState<PanelType[]>(['calendar', 'notebook', 'character'])
+  const [visiblePanels, setVisiblePanels] = useState<PanelType[]>(['todo', 'study', 'calendar', 'notebook', 'character'])
   const [todoPoints, setTodoPoints] = useState(0)
   const [studyPoints, setStudyPoints] = useState(0)
   const [notebookPoints, setNotebookPoints] = useState(0)
