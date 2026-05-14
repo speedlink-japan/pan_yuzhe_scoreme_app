@@ -272,16 +272,20 @@ export default function Home() {
         ? prev.filter(p => p !== panel)
         : [...prev, panel]
       
-      // 新規パネル追加の場合のみ、デフォルト位置に配置
+      // 新規パネル追加の場合のみ、位置を設定
       const isNew = !prev.includes(panel)
       if (isNew) {
-        // 新規パネルをデフォルト位置に追加
+        // 新規パネル追加：前回の位置があればそれを使用、なければデフォルト位置
         const width = typeof window !== 'undefined' ? window.innerWidth : 1024
         const defaultLayout = getDefaultLayout(width)
-        setPanelPositions(prevPos => ({
-          ...prevPos,
-          [panel]: defaultLayout[panel],
-        }))
+        setPanelPositions(prevPos => {
+          // 前回OFF時の位置がまだ保持されている場合はそれを使用
+          const prevPosition = prevPos[panel]
+          return {
+            ...prevPos,
+            [panel]: prevPosition || defaultLayout[panel],
+          }
+        })
       }
       // パネル削除の場合は状態変更のみ（既存パネルのレイアウト保持）
 
