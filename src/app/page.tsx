@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import styles from './page.module.css'
 import TopBar from '@/components/TopBar'
 import BottomNavBar from '@/components/BottomNavBar'
@@ -10,7 +10,13 @@ import StudyPanel from '@/components/StudyPanel'
 import CalendarPanel from '@/components/CalendarPanel'
 import NotebookPanel from '@/components/NotebookPanel'
 import CharacterPanel from '@/components/CharacterPanel'
-import { saveLayoutState, loadLayoutState } from '@/utils/layoutStorage'
+import { 
+  saveLayoutState, 
+  loadLayoutState,
+  saveFullscreenBackup,
+  loadFullscreenBackup,
+  clearFullscreenBackup
+} from '@/utils/layoutStorage'
 
 type PanelType = 'todo' | 'study' | 'calendar' | 'notebook' | 'character'
 
@@ -61,8 +67,6 @@ const getDefaultLayout = (width: number): Record<PanelType, PanelPosition> => {
     return defaultPositionsMobile
   }
 }
-
-const defaultPositions = defaultPositionsPC
 
 const defaultZIndices: Record<PanelType, number> = {
   todo: 10,
@@ -185,16 +189,16 @@ const calculateDynamicLayout = (
 }
 
 export default function Home() {
-  const [visiblePanels, setVisiblePanels] = useState<PanelType[]>(['calendar', 'notebook', 'character'])
+  const [visiblePanels, setVisiblePanels] = useState<PanelType[]>(['todo', 'study', 'calendar', 'notebook', 'character'])
   const [todoPoints, setTodoPoints] = useState(0)
   const [studyPoints, setStudyPoints] = useState(0)
   const [notebookPoints, setNotebookPoints] = useState(0)
   const [isLocked, setIsLockedState] = useState(false)
-  const [panelPositions, setPanelPositionsState] = useState<Record<PanelType, PanelPosition>>(defaultPositions)
+  const [panelPositions, setPanelPositionsState] = useState<Record<PanelType, PanelPosition>>(defaultPositionsPC)
   const [panelZIndices, setPanelZIndicesState] = useState<Record<PanelType, number>>(defaultZIndices)
   const [isHydrated, setIsHydrated] = useState(false)
-  const [autoLayoutMode, setAutoLayoutMode] = useState(true) // 動的レイアウトモードのフラグ
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('normal')
+  const prevLayoutModeRef = useRef<LayoutMode>('normal')
 
   // 初期化：ストレージからレイアウト状態を復元 & ウィンドウサイズ監視
   useEffect(() => {
@@ -208,14 +212,12 @@ export default function Home() {
         if (saved.panelZIndices) {
           setPanelZIndicesState(saved.panelZIndices as Record<PanelType, number>)
         }
-        setAutoLayoutMode(false) // 保存されたレイアウトがあるので自動レイアウトをOFF
+
       } else {
-        // 保存されたレイアウトがない場合は、初期表示パネルで動的レイアウトを使用
+        // 保存されたレイアウトがない場合は、ウィンドウサイズに応じたデフォルトレイアウトを使用
         const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-        const width1024 = width >= 1024 ? width : 1024
-        const dynamicLayout = calculateDynamicLayout(['calendar', 'notebook', 'character'], width1024, 50, 'normal')
-        setPanelPositionsState(dynamicLayout)
-        setAutoLayoutMode(true) // 自動レイアウトON
+        const defaultLayout = getDefaultLayout(width)
+        setPanelPositionsState(defaultLayout)
       }
     }
 
@@ -230,14 +232,27 @@ export default function Home() {
     }
   }, [isLocked, panelPositions, panelZIndices, isHydrated])
 
-  // layoutMode が変更されたときに動的レイアウトを再計算
+  // layoutMode または visiblePanels が変更されたときに動的レイアウトを再計算
   useEffect(() => {
     if (isHydrated) {
-      const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-      if (width >= 1024) {
-        const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, layoutMode)
+      const isEnteringFullscreen = prevLayoutModeRef.current === 'normal' && layoutMode === 'fullscreen'
+      
+      // フルスクリーンに入る時：フルスクリーン用のグリッドレイアウトを計算
+      if (isEnteringFullscreen) {
+        const width = typeof window !== 'undefined' ? window.innerWidth : 1024
+        const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, 'fullscreen')
+        setPanelPositionsState(dynamicLayout)
+      } else if (layoutMode === 'fullscreen') {
+        // フルスクリーン中にパネルON/OFFされた場合：グリッドレイアウトを再計算
+        const width = typeof window !== 'undefined' ? window.innerWidth : 1024
+        const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, 'fullscreen')
         setPanelPositionsState(dynamicLayout)
       }
+      // フルスクリーンから戻る時：バックアップから復元されているのでスキップ
+      // 通常モード中の visiblePanels 変更：自動計算しない（ユーザーが調整したレイアウトを保持）
+      
+      // 参照を更新
+      prevLayoutModeRef.current = layoutMode
     }
   }, [layoutMode, visiblePanels, isHydrated])
 
@@ -262,35 +277,29 @@ export default function Home() {
         ? prev.filter(p => p !== panel)
         : [...prev, panel]
       
-      const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-      
-      if (width >= 1024) {
-        // フルスクリーンモード：新しいパネル構成で全体を再レイアウト
-        if (layoutMode === 'fullscreen') {
-          const dynamicLayout = calculateDynamicLayout(newVisiblePanels, width, 50, layoutMode)
-          setPanelPositions(dynamicLayout)
-        } else {
-          // 通常モード：新規パネルのみデフォルト位置に配置、既存パネルは保持
-          const isNew = !prev.includes(panel)
-          if (isNew) {
-            // 新規パネルをデフォルト位置に追加
-            const defaultLayout = getDefaultLayout(width)
-            setPanelPositions(prevPos => ({
-              ...prevPos,
-              [panel]: defaultLayout[panel],
-            }))
+      // 新規パネル追加の場合のみ、位置を設定
+      const isNew = !prev.includes(panel)
+      if (isNew) {
+        // 新規パネル追加：前回の位置があればそれを使用、なければデフォルト位置
+        const width = typeof window !== 'undefined' ? window.innerWidth : 1024
+        const defaultLayout = getDefaultLayout(width)
+        setPanelPositions(prevPos => {
+          // 前回OFF時の位置がまだ保持されている場合はそれを使用
+          const prevPosition = prevPos[panel]
+          return {
+            ...prevPos,
+            [panel]: prevPosition || defaultLayout[panel],
           }
-          // パネル削除の場合は状態変更のみ（既存パネルのレイアウト保持）
-        }
+        })
       }
+      // パネル削除の場合は状態変更のみ（既存パネルのレイアウト保持）
 
       return newVisiblePanels
     })
   }
 
   const handlePositionChange = (panelId: PanelType, newPosition: PanelPosition) => {
-    // ユーザーが手動でドラッグして位置を変更した場合、自動レイアウトをOFF
-    setAutoLayoutMode(false)
+    // ユーザーが手動でドラッグして位置を変更した場合
     
     setPanelPositions(prev => ({
       ...prev,
@@ -305,6 +314,26 @@ export default function Home() {
       currentIndices[panelId] = maxZ + 1
       return currentIndices
     })
+  }
+
+  const handleToggleFullscreen = () => {
+    if (layoutMode === 'normal') {
+      // フルスクリーンに入る：現在のレイアウト状態をバックアップ
+      saveFullscreenBackup(isLocked, panelPositions, panelZIndices)
+      setLayoutMode('fullscreen')
+    } else {
+      // フルスクリーンから出る：バックアップからレイアウト状態を復元
+      const backup = loadFullscreenBackup()
+      if (backup) {
+        // 先にレイアウト状態を復元
+        setPanelPositionsState(backup.panelPositions as Record<PanelType, PanelPosition>)
+        setPanelZIndicesState(backup.panelZIndices || defaultZIndices)
+        setIsLockedState(backup.isLocked)
+        clearFullscreenBackup()
+      }
+      // その後layoutModeを変更（useEffectがトリガーされるが計算はスキップ）
+      setLayoutMode('normal')
+    }
   }
 
   const handleReset = () => {
@@ -355,7 +384,6 @@ export default function Home() {
     setPanelPositionsState(centeredLayout)
     setPanelZIndicesState(defaultZIndices)
     setIsLockedState(false)
-    setAutoLayoutMode(true)
     setLayoutMode('normal') // リセット時は通常モードに戻す
   }
 
@@ -444,7 +472,7 @@ export default function Home() {
         onToggleLock={() => setIsLocked(!isLocked)}
         onReset={handleReset}
         layoutMode={layoutMode}
-        onToggleFullscreen={() => setLayoutMode(layoutMode === 'normal' ? 'fullscreen' : 'normal')}
+        onToggleFullscreen={handleToggleFullscreen}
       />
     </main>
   )
