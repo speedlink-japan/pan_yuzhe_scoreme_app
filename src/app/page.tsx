@@ -278,23 +278,17 @@ export default function Home() {
       const width = typeof window !== 'undefined' ? window.innerWidth : 1024
       
       if (width >= 1024) {
-        // フルスクリーンモード：新しいパネル構成で全体を再レイアウト
-        if (layoutMode === 'fullscreen') {
-          const dynamicLayout = calculateDynamicLayout(newVisiblePanels, width, 50, layoutMode)
-          setPanelPositions(dynamicLayout)
-        } else {
-          // 通常モード：新規パネルのみデフォルト位置に配置、既存パネルは保持
-          const isNew = !prev.includes(panel)
-          if (isNew) {
-            // 新規パネルをデフォルト位置に追加
-            const defaultLayout = getDefaultLayout(width)
-            setPanelPositions(prevPos => ({
-              ...prevPos,
-              [panel]: defaultLayout[panel],
-            }))
-          }
-          // パネル削除の場合は状態変更のみ（既存パネルのレイアウト保持）
+        // 新規パネル追加の場合のみ、デフォルト位置に配置
+        const isNew = !prev.includes(panel)
+        if (isNew) {
+          // 新規パネルをデフォルト位置に追加
+          const defaultLayout = getDefaultLayout(width)
+          setPanelPositions(prevPos => ({
+            ...prevPos,
+            [panel]: defaultLayout[panel],
+          }))
         }
+        // パネル削除の場合は状態変更のみ（既存パネルのレイアウト保持）
       }
 
       return newVisiblePanels
