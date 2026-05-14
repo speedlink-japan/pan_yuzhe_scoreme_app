@@ -241,7 +241,11 @@ export default function Home() {
       // フルスクリーンから通常モードに戻る場合は、自動レイアウト計算をスキップ
       const isRestoringFromFullscreen = prevLayoutModeRef.current === 'fullscreen' && layoutMode === 'normal'
       
-      if (!isRestoringFromFullscreen) {
+      // フルスクリーンモード時は自動計算をスキップ（ユーザー調整レイアウトを保持）
+      // フルスクリーン→通常への復帰時も自動計算をスキップ（バックアップから復元）
+      const shouldSkipCalculation = layoutMode === 'fullscreen' || isRestoringFromFullscreen
+      
+      if (!shouldSkipCalculation) {
         const width = typeof window !== 'undefined' ? window.innerWidth : 1024
         if (width >= 1024) {
           const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, layoutMode)
