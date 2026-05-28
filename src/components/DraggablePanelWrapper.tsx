@@ -18,6 +18,7 @@ interface DraggablePanelWrapperProps {
   zIndex: number
   onPositionChange?: (state: DragResizeState) => void
   onBringToFront?: () => void
+  layoutMode?: 'normal' | 'fullscreen'
 }
 
 const DraggablePanelWrapper: React.FC<DraggablePanelWrapperProps> = ({
@@ -27,10 +28,13 @@ const DraggablePanelWrapper: React.FC<DraggablePanelWrapperProps> = ({
   zIndex,
   onPositionChange,
   onBringToFront,
+  layoutMode = 'normal',
 }) => {
+  // フルスクリーンモード時は常にロック状態
+  const effectivelyLocked = layoutMode === 'fullscreen' ? true : isLocked
   const { position, handleMouseDown, isDragging, isResizing } = useDragResize(
     initialState,
-    isLocked,
+    effectivelyLocked,
     onPositionChange
   )
   const [isVisible, setIsVisible] = useState(false)
@@ -44,7 +48,7 @@ const DraggablePanelWrapper: React.FC<DraggablePanelWrapperProps> = ({
     <div
       className={`${styles.wrapper} ${isDragging ? styles.dragging : ''} ${
         isResizing ? styles.resizing : ''
-      } ${isLocked ? styles.locked : ''} ${isVisible ? styles.fadeIn : ''}`}
+      } ${effectivelyLocked ? styles.locked : ''} ${isVisible ? styles.fadeIn : ''}`}
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
@@ -55,14 +59,14 @@ const DraggablePanelWrapper: React.FC<DraggablePanelWrapperProps> = ({
       onClick={onBringToFront}
     >
       <div
-        className={styles.dragHandle}
+        className={`${styles.dragHandle} ${layoutMode === 'fullscreen' ? styles.fullscreen : ''}`}
         onMouseDown={(e) => handleMouseDown(e, 'drag')}
-        style={{ cursor: isLocked ? 'default' : 'grab' }}
+        style={{ cursor: effectivelyLocked ? 'default' : 'grab' }}
       />
 
       <div className={styles.content}>{children}</div>
 
-      {!isLocked && (
+      {!effectivelyLocked && (
         <div
           className={styles.resizeHandle}
           onMouseDown={(e) => handleMouseDown(e, 'resize')}
