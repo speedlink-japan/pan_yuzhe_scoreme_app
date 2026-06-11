@@ -40,15 +40,18 @@
 
 .tab {
   flex: 1;
-  padding: 12px;
+  min-height: 44px;
+  padding: 10px 8px;
   border: none;
   background: transparent;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: #666;
   transition: all 0.2s;
   border-bottom: 2px solid transparent;
+  line-height: 1.25;
+  white-space: normal;
 }
 
 .tab:hover {
@@ -128,6 +131,9 @@
   cursor: pointer;
   font-weight: bold;
   transition: all 0.2s;
+  min-width: 72px;
+  line-height: 1.25;
+  white-space: normal;
 }
 
 .submitBtn:hover {
@@ -281,9 +287,17 @@
 }
 
 .formSection h3 {
-  margin: 0 0 12px 0;
+  margin: 0 0 4px 0;
   color: #FFB6D9;
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.sectionHelp {
+  margin: 0 0 12px 0;
+  color: #777;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .formGroup {
@@ -310,10 +324,28 @@
 }
 
 .milestoneSection h4 {
-  margin: 0 0 12px 0;
+  margin: 0 0 6px 0;
   color: #FFB6D9;
   font-size: 13px;
   font-weight: bold;
+  line-height: 1.4;
+}
+
+.unassignedSteps {
+  margin-bottom: 14px;
+  padding: 10px;
+  background: white;
+  border-radius: 6px;
+  border: 1px dashed #A3E4D7;
+}
+
+.sectionLabel {
+  display: block;
+  margin-bottom: 8px;
+  color: #5FAFA2;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 1.45;
 }
 
 .milestoneForm {
@@ -322,13 +354,59 @@
   background: white;
   border-radius: 6px;
   border: 1px solid #FFB6D9;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.milestoneHeader[draggable="true"],
+.stepsForm[draggable="true"],
+.stepForm[draggable="true"] {
+  cursor: grab;
+}
+
+.milestoneHeader[draggable="true"]:active,
+.stepsForm[draggable="true"]:active,
+.stepForm[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.movedMilestone {
+  animation: milestoneMoved 0.9s ease;
+  background: #F6FFFC;
+  border-color: #5FCDBB;
+  box-shadow: 0 0 0 3px rgba(95, 205, 187, 0.18), 0 8px 18px rgba(95, 205, 187, 0.18);
+}
+
+.draggingMilestone {
+  opacity: 0.58;
+  border-style: dashed;
+  box-shadow: 0 0 0 2px rgba(255, 182, 217, 0.18);
+}
+
+.dropTargetMilestone {
+  background: #F6FFFC;
+  border-color: #5FCDBB;
+  box-shadow: inset 0 0 0 2px rgba(95, 205, 187, 0.38), 0 8px 18px rgba(95, 205, 187, 0.14);
+  transform: translateY(-2px);
+}
+
+.draggingStepGroup {
+  box-shadow: 0 0 0 2px rgba(127, 144, 255, 0.22);
+}
+
+.draggingStepGroup .stepsForm {
+  opacity: 0.58;
+  border-style: dashed;
 }
 
 .milestoneHeader {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  gap: 6px;
+  margin: -2px -2px 8px -2px;
+  padding: 8px;
+  background: #FFF0F7;
+  border: 1px solid rgba(255, 182, 217, 0.75);
+  border-radius: 6px;
 }
 
 .milestoneName {
@@ -337,17 +415,86 @@
   font-size: 13px;
 }
 
+.milestoneInput {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #FFB6D9;
+  border-radius: 4px;
+  color: #FF99C8;
+  font-size: 13px;
+  font-weight: bold;
+  background: white;
+}
+
+.milestoneInput:focus {
+  outline: none;
+  border-color: #FFB6D9;
+  box-shadow: 0 0 0 2px rgba(255, 182, 217, 0.1);
+}
+
+.moveFeedback {
+  margin: -2px 0 8px 24px;
+  color: #238A7A;
+  font-size: 11px;
+  font-weight: bold;
+  line-height: 1.4;
+  animation: moveFeedbackFade 0.9s ease both;
+}
+
+.dropHint {
+  margin: -2px 0 8px 24px;
+  color: #238A7A;
+  font-size: 11px;
+  font-weight: bold;
+  line-height: 1.4;
+}
+
 .stepsForm {
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-bottom: 8px;
+  padding: 8px;
+  background: #FAFCFF;
+  border: 1px solid rgba(127, 184, 255, 0.32);
+  border-radius: 6px;
+}
+
+.milestoneBadge,
+.stepsLabel {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.milestoneBadge {
+  padding: 3px 7px;
+  background: rgba(255, 182, 217, 0.22);
+  color: #E35F9D;
+}
+
+.stepsLabel {
+  align-self: flex-start;
+  padding: 2px 7px;
+  background: rgba(127, 184, 255, 0.16);
+  color: #356EBD;
+}
+
+.milestoneDragHandle {
+  color: #E35F9D;
 }
 
 .stepForm {
   display: flex;
   gap: 6px;
   align-items: center;
+  min-height: 30px;
+  border-radius: 5px;
+  padding: 2px;
+  transition: background 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
 
 .stepInput {
@@ -358,10 +505,89 @@
   font-size: 12px;
 }
 
+.draggingStep {
+  opacity: 0.56;
+  background: rgba(127, 184, 255, 0.08);
+}
+
+.dropTargetStep {
+  background: #F4F9FF;
+  box-shadow: inset 0 0 0 2px rgba(92, 151, 224, 0.4);
+}
+
+.movedStep {
+  animation: stepMoved 0.9s ease;
+  background: #F4F9FF;
+  box-shadow: inset 0 0 0 2px rgba(92, 151, 224, 0.28);
+}
+
+.stepDropZoneTarget {
+  border-color: #7FB8FF;
+  box-shadow: inset 0 0 0 2px rgba(127, 184, 255, 0.28), 0 6px 14px rgba(127, 184, 255, 0.12);
+}
+
+.movedStepGroup {
+  border-color: #9A8CFF;
+  box-shadow: inset 0 0 0 2px rgba(154, 140, 255, 0.26), 0 8px 18px rgba(154, 140, 255, 0.14);
+}
+
+.stepDropHint {
+  margin: -2px 0 8px 24px;
+  color: #356EBD;
+  font-size: 11px;
+  font-weight: bold;
+  line-height: 1.4;
+}
+
+.stepGroupDropHint,
+.stepGroupFeedback {
+  margin: -2px 0 8px 24px;
+  color: #5A4FCF;
+  font-size: 11px;
+  font-weight: bold;
+  line-height: 1.4;
+}
+
+.stepGroupFeedback {
+  animation: moveFeedbackFade 0.9s ease both;
+}
+
+.inlineStepHint,
+.inlineStepFeedback {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.inlineStepHint {
+  background: rgba(127, 184, 255, 0.18);
+  color: #356EBD;
+}
+
+.inlineStepFeedback {
+  background: rgba(127, 184, 255, 0.16);
+  color: #356EBD;
+  animation: moveFeedbackFade 0.9s ease both;
+}
+
 .stepInput:focus {
   outline: none;
   border-color: #FFB6D9;
   box-shadow: 0 0 0 2px rgba(255, 182, 217, 0.1);
+}
+
+.dragHandle {
+  width: 18px;
+  color: #BBB;
+  cursor: grab;
+  font-size: 14px;
+  line-height: 1;
+  text-align: center;
+  user-select: none;
 }
 
 .addStepForm {
@@ -370,6 +596,7 @@
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px dashed #FFB6D9;
+  align-items: stretch;
 }
 
 .addStepForm .input {
@@ -381,6 +608,7 @@
   gap: 6px;
   margin-top: 8px;
   padding-top: 8px;
+  align-items: stretch;
 }
 
 .addMilestoneForm .input {
@@ -405,4 +633,58 @@
 .removeBtn:hover {
   background: #FF99C8;
   transform: scale(1.1);
+}
+
+@media (max-width: 420px) {
+  .addStepForm,
+  .addMilestoneForm {
+    flex-direction: column;
+  }
+
+  .submitBtn {
+    width: 100%;
+  }
+}
+
+@keyframes milestoneMoved {
+  0% {
+    transform: translateY(-6px);
+  }
+  45% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes moveFeedbackFade {
+  0% {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes stepMoved {
+  0% {
+    transform: translateX(-5px);
+  }
+  45% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(0);
+  }
 }
