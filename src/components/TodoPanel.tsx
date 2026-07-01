@@ -43,6 +43,52 @@ type DraggedProjectFormItem =
   | { type: 'step'; milestoneId: string | null; stepId: string }
   | { type: 'stepGroup'; milestoneId: string }
 type StepDropTarget = { milestoneId: string | null; stepId?: string }
+type TodoSession = {
+  todos: TodoItem[]
+  earnedPoints: number
+}
+
+const TODO_SESSION_STORAGE_KEY = 'myscore.todo.session.v1'
+
+const defaultTodos: TodoItem[] = [
+  {
+    type: 'single',
+    data: {
+      id: '1',
+      text: 'Sample Easy Task',
+      difficulty: 'easy',
+      completed: false,
+    },
+  },
+  {
+    type: 'single',
+    data: {
+      id: '2',
+      text: 'Sample Medium Task',
+      difficulty: 'medium',
+      completed: false,
+    },
+  },
+]
+
+const loadTodoSession = (): TodoSession => {
+  if (typeof window === 'undefined') {
+    return { todos: defaultTodos, earnedPoints: 0 }
+  }
+
+  try {
+    const rawSession = window.localStorage.getItem(TODO_SESSION_STORAGE_KEY)
+    if (!rawSession) return { todos: defaultTodos, earnedPoints: 0 }
+
+    const parsed = JSON.parse(rawSession) as Partial<TodoSession>
+    return {
+      todos: Array.isArray(parsed.todos) ? parsed.todos : defaultTodos,
+      earnedPoints: typeof parsed.earnedPoints === 'number' ? parsed.earnedPoints : 0,
+    }
+  } catch {
+    return { todos: defaultTodos, earnedPoints: 0 }
+  }
+}
 
 // ポイント計算関数
 const getDifficultyEmoji = (difficulty: Difficulty): string => {
@@ -88,31 +134,12 @@ interface TodoPanelProps {
 }
 
 const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
-  const [todos, setTodos] = useState<TodoItem[]>([
-    {
-      type: 'single',
-      data: {
-        id: '1',
-        text: 'Sample Easy Task',
-        difficulty: 'easy',
-        completed: false,
-      },
-    },
-    {
-      type: 'single',
-      data: {
-        id: '2',
-        text: 'Sample Medium Task',
-        difficulty: 'medium',
-        completed: false,
-      },
-    },
-  ])
+  const [todos, setTodos] = useState<TodoItem[]>(() => loadTodoSession().todos)
 
   const [newTodoText, setNewTodoText] = useState('')
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium')
   const [activeTab, setActiveTab] = useState<'tasks' | 'create'>('tasks')
-  const [earnedPoints, setEarnedPoints] = useState(0)
+  const [earnedPoints, setEarnedPoints] = useState(() => loadTodoSession().earnedPoints)
   
   // プロジェクト作成フォーム用
   interface ProjectFormMilestone {
@@ -146,6 +173,13 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   React.useEffect(() => {
     onPointsChange?.(earnedPoints)
   }, [earnedPoints, onPointsChange])
+
+  React.useEffect(() => {
+    window.localStorage.setItem(
+      TODO_SESSION_STORAGE_KEY,
+      JSON.stringify({ todos, earnedPoints })
+    )
+  }, [todos, earnedPoints])
 
   React.useEffect(() => {
     if (!movedMilestoneId) return
@@ -592,6 +626,18 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
 
   const deleteTodo = (id: string) => {
     setTodos(todos.filter(todo => todo.data.id !== id))
+  }
+
+  const clearTodoSession = () => {
+    if (
+      typeof window !== 'undefined' &&
+      window.confirm('TODOセッションを削除しますか？入力したタスクとTODOポイントが初期状態に戻ります。')
+    ) {
+      window.localStorage.removeItem(TODO_SESSION_STORAGE_KEY)
+      setTodos(defaultTodos)
+      setEarnedPoints(0)
+      setActiveTab('tasks')
+    }
   }
 
   return (
@@ -1107,6 +1153,14 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           </div>
         )}
       </div>
+      <button
+        type="button"
+        className={styles.sessionDeleteBtn}
+        onClick={clearTodoSession}
+        title="TODOセッションを削除"
+      >
+        セッション削除
+      </button>
     </div>
   )
 }

@@ -191,9 +191,9 @@ export default function Home() {
   const [notebookPoints, setNotebookPoints] = useState(0)
   const [isLocked, setIsLockedState] = useState(false)
   const [panelPositions, setPanelPositionsState] = useState<Record<PanelType, PanelPosition>>(defaultPositions)
+  const [fullscreenPanelPositions, setFullscreenPanelPositions] = useState<Record<PanelType, PanelPosition>>(defaultPositions)
   const [panelZIndices, setPanelZIndicesState] = useState<Record<PanelType, number>>(defaultZIndices)
   const [isHydrated, setIsHydrated] = useState(false)
-  const [autoLayoutMode, setAutoLayoutMode] = useState(true) // 動的レイアウトモードのフラグ
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('normal')
 
   // 初期化：ストレージからレイアウト状態を復元 & ウィンドウサイズ監視
@@ -208,14 +208,9 @@ export default function Home() {
         if (saved.panelZIndices) {
           setPanelZIndicesState(saved.panelZIndices as Record<PanelType, number>)
         }
-        setAutoLayoutMode(false) // 保存されたレイアウトがあるので自動レイアウトをOFF
       } else {
-        // 保存されたレイアウトがない場合は、初期表示パネルで動的レイアウトを使用
         const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-        const width1024 = width >= 1024 ? width : 1024
-        const dynamicLayout = calculateDynamicLayout(['calendar', 'notebook', 'character'], width1024, 50, 'normal')
-        setPanelPositionsState(dynamicLayout)
-        setAutoLayoutMode(true) // 自動レイアウトON
+        setPanelPositionsState(getDefaultLayout(width))
       }
     }
 
@@ -230,14 +225,12 @@ export default function Home() {
     }
   }, [isLocked, panelPositions, panelZIndices, isHydrated])
 
-  // layoutMode が変更されたときに動的レイアウトを再計算
+  // フルスクリーン用の一時レイアウトを再計算
   useEffect(() => {
-    if (isHydrated) {
+    if (isHydrated && layoutMode === 'fullscreen') {
       const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-      if (width >= 1024) {
-        const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, layoutMode)
-        setPanelPositionsState(dynamicLayout)
-      }
+      const dynamicLayout = calculateDynamicLayout(visiblePanels, width, 50, layoutMode)
+      setFullscreenPanelPositions(dynamicLayout)
     }
   }, [layoutMode, visiblePanels, isHydrated])
 
@@ -257,28 +250,29 @@ export default function Home() {
   }
 
   const togglePanel = (panel: PanelType) => {
-    setVisiblePanels(prev => {
-      const newVisiblePanels = prev.includes(panel)
-        ? prev.filter(p => p !== panel)
-        : [...prev, panel]
-      
-      // 自動レイアウトモードがONの場合、新しいパネル構成で動的レイアウトを適用
-      if (autoLayoutMode) {
-        const width = typeof window !== 'undefined' ? window.innerWidth : 1024
-        if (width >= 1024) {
-          const dynamicLayout = calculateDynamicLayout(newVisiblePanels, width, 50, layoutMode)
-          setPanelPositions(dynamicLayout)
-        }
-      }
+    const nextVisiblePanels = visiblePanels.includes(panel)
+      ? visiblePanels.filter(p => p !== panel)
+      : [...visiblePanels, panel]
 
-      return newVisiblePanels
-    })
+    if (layoutMode === 'normal') {
+      if (visiblePanels.includes(panel)) {
+        setVisiblePanels(nextVisiblePanels)
+      } else {
+        handleBringToFront(panel)
+        setVisiblePanels(nextVisiblePanels)
+      }
+      return
+    }
+
+    setVisiblePanels(nextVisiblePanels)
+
+    const width = typeof window !== 'undefined' ? window.innerWidth : 1024
+    setFullscreenPanelPositions(calculateDynamicLayout(nextVisiblePanels, width, 50, layoutMode))
   }
 
   const handlePositionChange = (panelId: PanelType, newPosition: PanelPosition) => {
-    // ユーザーが手動でドラッグして位置を変更した場合、自動レイアウトをOFF
-    setAutoLayoutMode(false)
-    
+    if (layoutMode === 'fullscreen') return
+
     setPanelPositions(prev => ({
       ...prev,
       [panelId]: newPosition,
@@ -304,11 +298,11 @@ export default function Home() {
     
     setPanelZIndicesState(defaultZIndices)
     setIsLockedState(false)
-    setAutoLayoutMode(true)
     setLayoutMode('normal') // リセット時は通常モードに戻す
   }
 
   const totalPoints = todoPoints + studyPoints + notebookPoints
+  const displayedPanelPositions = layoutMode === 'fullscreen' ? fullscreenPanelPositions : panelPositions
 
   return (
     <main className={styles.main}>
@@ -322,11 +316,12 @@ export default function Home() {
       <div className={styles.dashboardContainer}>
         {visiblePanels.includes('todo') && (
           <DraggablePanelWrapper
-            initialState={panelPositions.todo}
+            initialState={displayedPanelPositions.todo}
             isLocked={isLocked}
             zIndex={panelZIndices.todo}
             onPositionChange={(pos) => handlePositionChange('todo', pos)}
             onBringToFront={() => handleBringToFront('todo')}
+            hideLayoutControls={layoutMode === 'fullscreen'}
           >
             <TodoPanel onPointsChange={setTodoPoints} />
           </DraggablePanelWrapper>
@@ -334,11 +329,12 @@ export default function Home() {
 
         {visiblePanels.includes('study') && (
           <DraggablePanelWrapper
-            initialState={panelPositions.study}
+            initialState={displayedPanelPositions.study}
             isLocked={isLocked}
             zIndex={panelZIndices.study}
             onPositionChange={(pos) => handlePositionChange('study', pos)}
             onBringToFront={() => handleBringToFront('study')}
+            hideLayoutControls={layoutMode === 'fullscreen'}
           >
             <StudyPanel onPointsChange={setStudyPoints} />
           </DraggablePanelWrapper>
@@ -346,11 +342,12 @@ export default function Home() {
 
         {visiblePanels.includes('calendar') && (
           <DraggablePanelWrapper
-            initialState={panelPositions.calendar}
+            initialState={displayedPanelPositions.calendar}
             isLocked={isLocked}
             zIndex={panelZIndices.calendar}
             onPositionChange={(pos) => handlePositionChange('calendar', pos)}
             onBringToFront={() => handleBringToFront('calendar')}
+            hideLayoutControls={layoutMode === 'fullscreen'}
           >
             <CalendarPanel />
           </DraggablePanelWrapper>
@@ -358,11 +355,12 @@ export default function Home() {
 
         {visiblePanels.includes('notebook') && (
           <DraggablePanelWrapper
-            initialState={panelPositions.notebook}
+            initialState={displayedPanelPositions.notebook}
             isLocked={isLocked}
             zIndex={panelZIndices.notebook}
             onPositionChange={(pos) => handlePositionChange('notebook', pos)}
             onBringToFront={() => handleBringToFront('notebook')}
+            hideLayoutControls={layoutMode === 'fullscreen'}
           >
             <NotebookPanel onPointsChange={setNotebookPoints} />
           </DraggablePanelWrapper>
@@ -370,11 +368,12 @@ export default function Home() {
 
         {visiblePanels.includes('character') && (
           <DraggablePanelWrapper
-            initialState={panelPositions.character}
+            initialState={displayedPanelPositions.character}
             isLocked={isLocked}
             zIndex={panelZIndices.character}
             onPositionChange={(pos) => handlePositionChange('character', pos)}
             onBringToFront={() => handleBringToFront('character')}
+            hideLayoutControls={layoutMode === 'fullscreen'}
           >
             <CharacterPanel />
           </DraggablePanelWrapper>

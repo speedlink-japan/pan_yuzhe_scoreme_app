@@ -18,6 +18,7 @@ interface DraggablePanelWrapperProps {
   zIndex: number
   onPositionChange?: (state: DragResizeState) => void
   onBringToFront?: () => void
+  hideLayoutControls?: boolean
 }
 
 const DraggablePanelWrapper: React.FC<DraggablePanelWrapperProps> = ({
@@ -27,10 +28,12 @@ const DraggablePanelWrapper: React.FC<DraggablePanelWrapperProps> = ({
   zIndex,
   onPositionChange,
   onBringToFront,
+  hideLayoutControls = false,
 }) => {
+  const controlsLocked = isLocked || hideLayoutControls
   const { position, handleMouseDown, isDragging, isResizing } = useDragResize(
     initialState,
-    isLocked,
+    controlsLocked,
     onPositionChange
   )
   const [isVisible, setIsVisible] = useState(false)
@@ -44,7 +47,7 @@ const DraggablePanelWrapper: React.FC<DraggablePanelWrapperProps> = ({
     <div
       className={`${styles.wrapper} ${isDragging ? styles.dragging : ''} ${
         isResizing ? styles.resizing : ''
-      } ${isLocked ? styles.locked : ''} ${isVisible ? styles.fadeIn : ''}`}
+      } ${controlsLocked ? styles.locked : ''} ${isVisible ? styles.fadeIn : ''}`}
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
@@ -54,15 +57,17 @@ const DraggablePanelWrapper: React.FC<DraggablePanelWrapperProps> = ({
       }}
       onClick={onBringToFront}
     >
-      <div
-        className={styles.dragHandle}
-        onMouseDown={(e) => handleMouseDown(e, 'drag')}
-        style={{ cursor: isLocked ? 'default' : 'grab' }}
-      />
+      {!hideLayoutControls && (
+        <div
+          className={styles.dragHandle}
+          onMouseDown={(e) => handleMouseDown(e, 'drag')}
+          style={{ cursor: isLocked ? 'default' : 'grab' }}
+        />
+      )}
 
       <div className={styles.content}>{children}</div>
 
-      {!isLocked && (
+      {!controlsLocked && (
         <div
           className={styles.resizeHandle}
           onMouseDown={(e) => handleMouseDown(e, 'resize')}

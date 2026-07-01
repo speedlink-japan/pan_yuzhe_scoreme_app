@@ -9,11 +9,11 @@
 }
 
 .header {
-  background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+  background: linear-gradient(135deg, #F3E8FF 0%, #C4B5FD 100%);
   padding: 1rem;
   color: #333;
   font-weight: bold;
-  border-bottom: 2px solid #81C784;
+  border-bottom: 2px solid #A78BFA;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -25,11 +25,11 @@
 }
 
 .pointsBadge {
-  background: rgba(129, 199, 132, 0.3);
+  background: rgba(167, 139, 250, 0.3);
   padding: 4px 12px;
   border-radius: 20px;
   font-size: 12px;
-  color: #388E3C;
+  color: #6D28D9;
   font-weight: bold;
 }
 
@@ -53,12 +53,12 @@
 }
 
 .tab:hover {
-  background: rgba(129, 199, 132, 0.2);
+  background: rgba(167, 139, 250, 0.2);
 }
 
 .tab.active {
-  color: #81C784;
-  border-bottom-color: #81C784;
+  color: #7C3AED;
+  border-bottom-color: #A78BFA;
 }
 
 .content {
@@ -85,8 +85,8 @@
 .bookPreview {
   padding: 1rem;
   border-radius: 8px;
-  background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
-  border-left: 4px solid #81C784;
+  background: linear-gradient(135deg, #F3E8FF 0%, #C4B5FD 100%);
+  border-left: 4px solid #A78BFA;
   min-height: 80px;
   display: flex;
   flex-direction: column;
@@ -109,10 +109,10 @@
 }
 
 .bookCategory {
-  background: rgba(129, 199, 132, 0.5);
+  background: rgba(167, 139, 250, 0.45);
   padding: 2px 6px;
   border-radius: 4px;
-  color: #2E7D32;
+  color: #5B21B6;
   font-weight: bold;
 }
 
@@ -122,7 +122,7 @@
 
 .bookPoints {
   margin-left: auto;
-  color: #4CAF50;
+  color: #7C3AED;
   font-weight: bold;
 }
 
@@ -156,23 +156,23 @@
 .formGroup input:focus,
 .formGroup select:focus {
   outline: none;
-  border-color: #81C784;
-  box-shadow: 0 0 0 2px rgba(129, 199, 132, 0.2);
+  border-color: #A78BFA;
+  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.2);
 }
 
 .pointsPreview {
   padding: 0.75rem;
-  background: rgba(129, 199, 132, 0.1);
+  background: rgba(167, 139, 250, 0.12);
   border-radius: 6px;
   text-align: center;
-  color: #388E3C;
+  color: #6D28D9;
   font-weight: bold;
   font-size: 14px;
 }
 
 .submitBtn {
   padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, #81C784 0%, #66BB6A 100%);
+  background: linear-gradient(135deg, #A78BFA 0%, #8B5CF6 100%);
   color: white;
   border: none;
   border-radius: 6px;
@@ -184,7 +184,7 @@
 
 .submitBtn:hover {
   transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 4px 12px rgba(129, 199, 132, 0.4);
+  box-shadow: 0 4px 12px rgba(167, 139, 250, 0.4);
   animation: scaleIn 0.3s ease-out;
 }
 
