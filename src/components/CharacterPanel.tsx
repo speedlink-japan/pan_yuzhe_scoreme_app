@@ -1,171 +1,125 @@
 'use client'
 
+import Image from 'next/image'
 import React, { useState } from 'react'
 import styles from './CharacterPanel.module.css'
+
+type OutfitId = 'home' | 'focus' | 'music'
+type RoomItemId = 'guitar' | 'laptop'
 
 interface Character {
   name: string
   level: number
   points: number
-  outfit: string
-  mood: string
-  dailyShown: boolean
+  outfit: OutfitId
 }
+
+const outfitOptions: { id: OutfitId; label: string; tone: string }[] = [
+  { id: 'home', label: '部屋着', tone: 'やさしいピンク' },
+  { id: 'focus', label: '集中', tone: '落ち着いたブルー' },
+  { id: 'music', label: '音楽', tone: 'あたたかいオレンジ' },
+]
+
+const roomItems: { id: RoomItemId; label: string; image: string }[] = [
+  { id: 'guitar', label: 'ギター', image: '/assets/me-room/guitar.png' },
+  { id: 'laptop', label: 'パソコン', image: '/assets/me-room/laptop.png' },
+]
 
 const CharacterPanel: React.FC = () => {
   const [character, setCharacter] = useState<Character>({
     name: 'MyCharacter',
     level: 1,
     points: 250,
-    outfit: 'casual',
-    mood: 'happy',
-    dailyShown: true,
+    outfit: 'home',
   })
+  const [activeItem, setActiveItem] = useState<RoomItemId>('guitar')
 
-  const [showModeModal, setShowModeModal] = useState(true)
-  const [selectedOutfit, setSelectedOutfit] = useState(character.outfit)
+  const selectedOutfit = outfitOptions.find(option => option.id === character.outfit) || outfitOptions[0]
+  const visibleItem = roomItems.find(item => item.id === activeItem) || roomItems[0]
 
-  const outfits = [
-    { id: 'casual', label: 'Casual', emoji: '👕' },
-    { id: 'formal', label: 'Formal', emoji: '🎩' },
-    { id: 'party', label: 'Party', emoji: '🎉' },
-    { id: 'athletic', label: 'Athletic', emoji: '🏃' },
-  ]
-
-  const handleCloseDailyModal = () => {
-    setShowModeModal(false)
-  }
-
-  const handleChangeOutfit = (outfitId: string) => {
-    setSelectedOutfit(outfitId)
-    setCharacter({ ...character, outfit: outfitId })
-  }
-
-  const handleBreak = () => {
-    alert('☕ You take a nice break with your character!')
-  }
-
-  const handleAccessory = () => {
-    alert("✨ Let's change the outfit!")
-    setShowModeModal(true)
-  }
-
-  const handleHobby = () => {
-    alert('🎲 Your character is having fun with hobbies!')
+  const handleChangeOutfit = (outfit: OutfitId) => {
+    setCharacter(prev => ({ ...prev, outfit }))
   }
 
   return (
     <div className={styles.panel}>
-      {showModeModal && (
-        <div className={styles.modal}>
-          <div className={styles.modalContent}>
-            <h3>How should I be today? 🤔</h3>
-            <p>Let us choose the mood and outfit for today!</p>
-
-            <div className={styles.outfitGrid}>
-              {outfits.map(outfit => (
-                <button
-                  key={outfit.id}
-                  className={`${styles.outfitBtn} ${selectedOutfit === outfit.id ? styles.selected : ''}`}
-                  onClick={() => handleChangeOutfit(outfit.id)}
-                >
-                  <span className={styles.outfitEmoji}>{outfit.emoji}</span>
-                  <span className={styles.outfitLabel}>{outfit.label}</span>
-                </button>
-              ))}
-            </div>
-
-            <label className={styles.dailyCheckbox}>
-              <input
-                type="checkbox"
-                checked={!character.dailyShown}
-                onChange={(e) => setCharacter({ ...character, dailyShown: !e.target.checked })}
-              />
-              Do not show again today
-            </label>
-
-            <button
-              onClick={handleCloseDailyModal}
-              className={styles.confirmBtn}
-            >
-              Confirm ✨
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className={styles.header}>
         <h2>🏠 Me</h2>
-        <span className={styles.levelBadge}>Lv.{character.level}</span>
+        <div className={styles.headerStats}>
+          <span>Lv.{character.level}</span>
+          <span>{character.points}pt</span>
+        </div>
       </div>
 
       <div className={styles.content}>
-        <div className={styles.characterDisplay}>
-          <div className={styles.characterImage}>
-            🎀
+        <section className={styles.roomStage} aria-label="着せ替えルーム">
+          <Image
+            className={styles.roomBackground}
+            src="/assets/me-room/room-background.png"
+            alt=""
+            fill
+            sizes="(max-width: 600px) 100vw, 50vw"
+            priority
+          />
+          <Image
+            className={`${styles.miniCharacter} ${styles[character.outfit]}`}
+            src="/assets/me-room/mini-character.png"
+            alt={character.name}
+            width={420}
+            height={336}
+          />
+          <Image
+            className={`${styles.roomItem} ${styles[activeItem]}`}
+            src={visibleItem.image}
+            alt={visibleItem.label}
+            width={260}
+            height={260}
+          />
+          <div className={styles.namePlate}>
+            <span>{character.name}</span>
+            <small>{selectedOutfit.label}</small>
           </div>
-          <div className={styles.characterInfo}>
-            <h3>{character.name}</h3>
-            <p className={styles.outfit}>Outfit: {selectedOutfit}</p>
-            <div className={styles.stats}>
-              <div className={styles.stat}>
-                <span className={styles.statLabel}>Points:</span>
-                <span className={styles.statValue}>{character.points}</span>
-              </div>
-              <div className={styles.stat}>
-                <span className={styles.statLabel}>Level:</span>
-                <span className={styles.statValue}>{character.level}</span>
-              </div>
+        </section>
+
+        <section className={styles.controls}>
+          <div className={styles.controlGroup}>
+            <div className={styles.groupHeader}>
+              <span>着せ替え</span>
+              <small>{selectedOutfit.tone}</small>
             </div>
-          </div>
-        </div>
-
-        <div className={styles.actionButtons}>
-          <button
-            className={styles.actionBtn}
-            onClick={handleBreak}
-            title="Take a break"
-          >
-            <span className={styles.btnEmoji}>☕</span>
-            <span className={styles.btnLabel}>Relax</span>
-          </button>
-
-          <button
-            className={styles.actionBtn}
-            onClick={handleAccessory}
-            title="Change outfit"
-          >
-            <span className={styles.btnEmoji}>✨</span>
-            <span className={styles.btnLabel}>Fashion</span>
-          </button>
-
-          <button
-            className={styles.actionBtn}
-            onClick={handleHobby}
-            title="Hobby interaction"
-          >
-            <span className={styles.btnEmoji}>🎲</span>
-            <span className={styles.btnLabel}>Hobby</span>
-          </button>
-        </div>
-
-        <div className={styles.rewardsSection}>
-          <h4>Rewards</h4>
-          <div className={styles.rewardsList}>
-            <div className={styles.rewardItem}>
-              <span>✨ Special Outfit</span>
-              <span className={styles.pointsRequired}>500pts</span>
-            </div>
-            <div className={styles.rewardItem}>
-              <span>🎀 Accessory Pack</span>
-              <span className={styles.pointsRequired}>300pts</span>
-            </div>
-            <div className={styles.rewardItem}>
-              <span>🏡 Home Decoration</span>
-              <span className={styles.pointsRequired}>250pts</span>
+            <div className={styles.optionGrid}>
+              {outfitOptions.map(option => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`${styles.optionButton} ${character.outfit === option.id ? styles.selected : ''}`}
+                  onClick={() => handleChangeOutfit(option.id)}
+                >
+                  {option.label}
+                </button>
+              ))}
             </div>
           </div>
-        </div>
+
+          <div className={styles.controlGroup}>
+            <div className={styles.groupHeader}>
+              <span>部屋アイテム</span>
+              <small>{visibleItem.label}</small>
+            </div>
+            <div className={styles.optionGrid}>
+              {roomItems.map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`${styles.optionButton} ${activeItem === item.id ? styles.selected : ''}`}
+                  onClick={() => setActiveItem(item.id)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   )
