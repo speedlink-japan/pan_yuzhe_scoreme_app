@@ -576,7 +576,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
         const task = todo.data as SingleTask
         const isNowCompleted = !task.completed
 
-        if (isNowCompleted) {
+        if (isNowCompleted && !task.completedAt) {
           pointsToAdd = TODO_DIFFICULTY_POINTS[task.difficulty]
         }
 
@@ -585,7 +585,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           data: {
             ...task,
             completed: isNowCompleted,
-            completedAt: isNowCompleted ? completedAt : undefined,
+            completedAt: isNowCompleted ? (task.completedAt || completedAt) : task.completedAt,
           },
         }
       }
@@ -606,7 +606,12 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
         
         // 更新前の状態を取得
         const oldMilestoneCompleted = project.milestones.find(m => m.id === milestoneId)?.completed || false
+        const oldMilestoneCompletedAt = project.milestones.find(m => m.id === milestoneId)?.completedAt
         const oldProjectCompleted = project.completed
+        const oldProjectCompletedAt = project.completedAt
+        const oldStepCompletedAt = project.milestones
+          .find(m => m.id === milestoneId)
+          ?.steps.find(s => s.id === stepId)?.completedAt
         
         // ステップのトグル
         const newMilestones = project.milestones.map(m =>
@@ -618,14 +623,14 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
                     ? {
                         ...s,
                         completed: !s.completed,
-                        completedAt: !s.completed ? completedAt : undefined,
+                        completedAt: !s.completed ? (s.completedAt || completedAt) : s.completedAt,
                       }
                     : s
                 ),
                 completed: m.steps.every(s => s.id === stepId ? !s.completed : s.completed),
                 completedAt: m.steps.every(s => s.id === stepId ? !s.completed : s.completed)
                   ? m.completedAt || completedAt
-                  : undefined,
+                  : m.completedAt,
               }
             : m
         )
@@ -641,17 +646,17 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           .find(m => m.id === milestoneId)
           ?.steps.find(s => s.id === stepId)?.completed
         
-        if (isStepNowCompleted) {
+        if (isStepNowCompleted && !oldStepCompletedAt) {
           pointsToAdd += TODO_STEP_POINTS
         }
         
         // マイルストーン完成ボーナス（未完了→完了のとき）
-        if (!oldMilestoneCompleted && newMilestoneCompleted) {
+        if (!oldMilestoneCompleted && newMilestoneCompleted && !oldMilestoneCompletedAt) {
           pointsToAdd += TODO_MILESTONE_POINTS
         }
         
         // プロジェクト完成ボーナス（未完了→完了のとき）
-        if (!oldProjectCompleted && newProjectCompleted) {
+        if (!oldProjectCompleted && newProjectCompleted && !oldProjectCompletedAt) {
           pointsToAdd += TODO_PROJECT_POINTS
         }
         
@@ -661,7 +666,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
             ...project,
             milestones: newMilestones,
             completed: newProjectCompleted,
-            completedAt: newProjectCompleted ? (project.completedAt || completedAt) : undefined,
+            completedAt: newProjectCompleted ? (project.completedAt || completedAt) : project.completedAt,
           },
         }
       }
@@ -673,6 +678,13 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   }
 
   const deleteTodo = (id: string) => {
+    const removedTodos = todos.filter(todo => todo.data.id === id)
+    const removedPointHistory = getTodoPointHistory(removedTodos)
+
+    if (removedPointHistory.length > 0) {
+      setArchivedPointHistory(prev => mergeTodoPointHistory(prev, removedPointHistory))
+    }
+
     setTodos(todos.filter(todo => todo.data.id !== id))
   }
 

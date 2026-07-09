@@ -458,7 +458,7 @@ export const getTodoPointHistory = (todos: TodoItem[]): TodoPointHistoryItem[] =
     if (todo.type === 'single') {
       const task = todo.data as SingleTask
 
-      if (task.completed && task.completedAt) {
+      if (task.completedAt) {
         items.push({
           id: `single-${task.id}`,
           title: task.text,
@@ -475,7 +475,7 @@ export const getTodoPointHistory = (todos: TodoItem[]): TodoPointHistoryItem[] =
 
     project.milestones.forEach(milestone => {
       milestone.steps.forEach(step => {
-        if (step.completed && step.completedAt) {
+        if (step.completedAt) {
           items.push({
             id: `step-${project.id}-${milestone.id}-${step.id}`,
             title: `${project.name} / ${step.text}`,
@@ -488,16 +488,15 @@ export const getTodoPointHistory = (todos: TodoItem[]): TodoPointHistoryItem[] =
 
       const milestoneCompletedAt =
         milestone.completedAt ||
-        getLatestCompletedAt(
-          milestone.steps
-            .filter(step => step.completed && step.completedAt)
-            .map(step => step.completedAt as string)
-        )
+        (milestone.completed
+          ? getLatestCompletedAt(
+              milestone.steps
+                .filter(step => step.completedAt)
+                .map(step => step.completedAt as string)
+            )
+          : undefined)
 
-      if (
-        milestone.completed &&
-        milestoneCompletedAt
-      ) {
+      if (milestoneCompletedAt) {
         items.push({
           id: `milestone-${project.id}-${milestone.id}`,
           title: `${project.name} / ${milestone.name}`,
@@ -508,7 +507,7 @@ export const getTodoPointHistory = (todos: TodoItem[]): TodoPointHistoryItem[] =
       }
     })
 
-    if (project.completed && project.completedAt) {
+    if (project.completedAt) {
       items.push({
         id: `project-${project.id}`,
         title: project.name,
