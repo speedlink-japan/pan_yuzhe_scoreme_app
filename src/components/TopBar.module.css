@@ -61,6 +61,7 @@
 }
 
 .statItem {
+  appearance: none;
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -70,11 +71,23 @@
   border: 1px solid rgba(255, 255, 255, 0.7);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
   transition: all 0.2s ease;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
 }
 
 .statItem:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.totalButton {
+  cursor: pointer;
+}
+
+.totalButton:focus-visible {
+  outline: 2px solid #B3D9FF;
+  outline-offset: 2px;
 }
 
 .statIcon {

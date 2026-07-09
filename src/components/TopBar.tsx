@@ -8,6 +8,7 @@ interface TopBarProps {
   todoPoints: number
   studyPoints: number
   notebookPoints: number
+  onTotalClick?: () => void
 }
 
 const TopBar: React.FC<TopBarProps> = ({
@@ -15,6 +16,7 @@ const TopBar: React.FC<TopBarProps> = ({
   todoPoints,
   studyPoints,
   notebookPoints,
+  onTotalClick,
 }) => {
   return (
     <header className={styles.topbar}>
@@ -27,13 +29,18 @@ const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       <div className={styles.stats}>
-        <div className={styles.statItem}>
+        <button
+          type="button"
+          className={`${styles.statItem} ${styles.totalButton}`}
+          onClick={onTotalClick}
+          title="カレンダーのサマリーを表示"
+        >
           <span className={styles.statIcon}>⭐</span>
           <div>
             <span className={styles.statLabel}>合計</span>
             <span className={styles.statValue}>{totalPoints}pt</span>
           </div>
-        </div>
+        </button>
         <div className={styles.statItem}>
           <span className={styles.statIcon}>✓</span>
           <div>

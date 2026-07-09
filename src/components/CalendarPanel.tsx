@@ -8,9 +8,19 @@ import {
   TodoPointHistoryItem,
   TodoSession,
   getTodoDailyStats,
+  getTodoDateKey,
+  getTodoPointHistory,
   getTodoPointHistoryForDate,
+  mergeTodoPointHistory,
   normalizeTodoSession,
 } from '@/utils/todoSession'
+
+type CalendarView = 'calendar' | 'detail' | 'summary'
+type SummaryMode = 'week' | 'month' | 'compare'
+
+interface CalendarPanelProps {
+  summaryRequestKey?: number
+}
 
 const readTodoSession = (): TodoSession => {
   if (typeof window === 'undefined') return normalizeTodoSession(null)
@@ -64,10 +74,84 @@ const formatCompletedTime = (dateValue: string): string => {
   })
 }
 
-const CalendarPanel: React.FC = () => {
+const startOfWeek = (date: Date): Date => {
+  const nextDate = new Date(date)
+  const day = nextDate.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  nextDate.setDate(nextDate.getDate() + diff)
+  nextDate.setHours(0, 0, 0, 0)
+  return nextDate
+}
+
+const addDays = (date: Date, days: number): Date => {
+  const nextDate = new Date(date)
+  nextDate.setDate(nextDate.getDate() + days)
+  return nextDate
+}
+
+const startOfMonth = (date: Date): Date => new Date(date.getFullYear(), date.getMonth(), 1)
+
+const addMonths = (date: Date, months: number): Date =>
+  new Date(date.getFullYear(), date.getMonth() + months, 1)
+
+const formatRangeLabel = (start: Date, end: Date): string => {
+  const startLabel = start.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
+  const endLabel = end.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })
+  return `${startLabel} - ${endLabel}`
+}
+
+const formatMonthLabel = (date: Date): string =>
+  date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })
+
+const isDateInRange = (dateKey: string, start: Date, end: Date): boolean => {
+  const date = new Date(`${dateKey}T00:00:00`)
+  return date >= start && date <= end
+}
+
+const summarizeRange = (
+  statsByDate: Record<string, TodoDailyStats>,
+  pointHistory: TodoPointHistoryItem[],
+  start: Date,
+  end: Date
+) => {
+  const stats = Object.values(statsByDate).reduce(
+    (summary, item) => {
+      if (!isDateInRange(item.date, start, end)) return summary
+
+      return {
+        completedSingleTasks: summary.completedSingleTasks + item.completedSingleTasks,
+        incompleteSingleTasks: summary.incompleteSingleTasks + item.incompleteSingleTasks,
+        completedProjectSteps: summary.completedProjectSteps + item.completedProjectSteps,
+      }
+    },
+    {
+      completedSingleTasks: 0,
+      incompleteSingleTasks: 0,
+      completedProjectSteps: 0,
+    }
+  )
+  const points = pointHistory
+    .filter(item => isDateInRange(getTodoDateKey(item.completedAt), start, end))
+    .reduce((total, item) => total + item.points, 0)
+
+  return {
+    ...stats,
+    points,
+    completedTotal: stats.completedSingleTasks + stats.completedProjectSteps,
+  }
+}
+
+const formatDiff = (value: number): string => {
+  if (value > 0) return `+${value}`
+  return `${value}`
+}
+
+const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) => {
   const [todoSession, setTodoSession] = React.useState<TodoSession>(() => readTodoSession())
   const [selectedDateKey, setSelectedDateKey] = React.useState<string | null>(null)
-  const today = new Date()
+  const [view, setView] = React.useState<CalendarView>('calendar')
+  const [summaryMode, setSummaryMode] = React.useState<SummaryMode>('week')
+  const today = React.useMemo(() => new Date(), [])
   const currentMonth = today.getMonth()
   const currentYear = today.getFullYear()
   const firstDay = new Date(currentYear, currentMonth, 1)
@@ -92,6 +176,14 @@ const CalendarPanel: React.FC = () => {
     () => getTodoDailyStats(todoSession.todos, todoSession.archivedPointHistory),
     [todoSession.todos, todoSession.archivedPointHistory]
   )
+  const allPointHistory = React.useMemo(
+    () =>
+      mergeTodoPointHistory(
+        todoSession.archivedPointHistory,
+        getTodoPointHistory(todoSession.todos)
+      ),
+    [todoSession.archivedPointHistory, todoSession.todos]
+  )
   const selectedStats = selectedDateKey
     ? todoStatsByDate[selectedDateKey] || emptyStats(selectedDateKey)
     : null
@@ -106,6 +198,43 @@ const CalendarPanel: React.FC = () => {
         : [],
     [selectedDateKey, todoSession.todos, todoSession.archivedPointHistory]
   )
+  const currentWeekStart = React.useMemo(() => startOfWeek(today), [today])
+  const currentWeekEnd = React.useMemo(() => addDays(currentWeekStart, 6), [currentWeekStart])
+  const previousWeekStart = React.useMemo(() => addDays(currentWeekStart, -7), [currentWeekStart])
+  const previousWeekEnd = React.useMemo(() => addDays(currentWeekStart, -1), [currentWeekStart])
+  const currentMonthStart = React.useMemo(() => startOfMonth(today), [today])
+  const currentMonthEnd = React.useMemo(
+    () => new Date(today.getFullYear(), today.getMonth() + 1, 0),
+    [today]
+  )
+  const previousMonthStart = React.useMemo(() => addMonths(currentMonthStart, -1), [currentMonthStart])
+  const previousMonthEnd = React.useMemo(
+    () => new Date(currentMonthStart.getFullYear(), currentMonthStart.getMonth(), 0),
+    [currentMonthStart]
+  )
+  const weeklySummary = React.useMemo(
+    () => summarizeRange(todoStatsByDate, allPointHistory, currentWeekStart, currentWeekEnd),
+    [todoStatsByDate, allPointHistory, currentWeekStart, currentWeekEnd]
+  )
+  const previousWeeklySummary = React.useMemo(
+    () => summarizeRange(todoStatsByDate, allPointHistory, previousWeekStart, previousWeekEnd),
+    [todoStatsByDate, allPointHistory, previousWeekStart, previousWeekEnd]
+  )
+  const monthlySummary = React.useMemo(
+    () => summarizeRange(todoStatsByDate, allPointHistory, currentMonthStart, currentMonthEnd),
+    [todoStatsByDate, allPointHistory, currentMonthStart, currentMonthEnd]
+  )
+  const previousMonthlySummary = React.useMemo(
+    () => summarizeRange(todoStatsByDate, allPointHistory, previousMonthStart, previousMonthEnd),
+    [todoStatsByDate, allPointHistory, previousMonthStart, previousMonthEnd]
+  )
+
+  React.useEffect(() => {
+    if (summaryRequestKey === 0) return
+
+    setSelectedDateKey(null)
+    setView('summary')
+  }, [summaryRequestKey])
 
   React.useEffect(() => {
     const syncTodoSession = () => {
@@ -126,16 +255,157 @@ const CalendarPanel: React.FC = () => {
     }
   }, [])
 
+  const openSummary = () => {
+    setSelectedDateKey(null)
+    setView('summary')
+  }
+
+  const openCalendar = () => {
+    setSelectedDateKey(null)
+    setView('calendar')
+  }
+
+  const openDetail = (dateKey: string) => {
+    setSelectedDateKey(dateKey)
+    setView('detail')
+  }
+
   return (
     <div className={styles.panel}>
       <div className={styles.header}>
         <h2>📅 {monthNames[currentMonth]} {currentYear}</h2>
+        <button
+          type="button"
+          className={styles.headerButton}
+          onClick={view === 'summary' ? openCalendar : openSummary}
+        >
+          {view === 'summary' ? 'カレンダー' : 'サマリー'}
+        </button>
       </div>
 
       <div className={styles.content}>
-        {selectedDateKey && selectedStats ? (
+        {view === 'summary' ? (
+          <div className={styles.summaryView}>
+            <div className={styles.detailHeader}>
+              <span className={styles.detailDate}>TODOサマリー</span>
+              <span className={styles.detailCaption}>
+                週・月の達成とポイントをまとめて確認
+              </span>
+            </div>
+
+            <div className={styles.segmentedControl}>
+              <button
+                type="button"
+                className={`${styles.segmentButton} ${summaryMode === 'week' ? styles.segmentActive : ''}`}
+                onClick={() => setSummaryMode('week')}
+              >
+                週
+              </button>
+              <button
+                type="button"
+                className={`${styles.segmentButton} ${summaryMode === 'month' ? styles.segmentActive : ''}`}
+                onClick={() => setSummaryMode('month')}
+              >
+                月
+              </button>
+              <button
+                type="button"
+                className={`${styles.segmentButton} ${summaryMode === 'compare' ? styles.segmentActive : ''}`}
+                onClick={() => setSummaryMode('compare')}
+              >
+                比較
+              </button>
+            </div>
+
+            {summaryMode === 'week' && (
+              <div className={styles.summaryContent}>
+                <span className={styles.periodLabel}>
+                  今週 {formatRangeLabel(currentWeekStart, currentWeekEnd)}
+                </span>
+                <div className={styles.summaryGrid}>
+                  <div className={`${styles.summaryItem} ${styles.summaryPoints}`}>
+                    <span className={styles.summaryValue}>{weeklySummary.points}</span>
+                    <span className={styles.summaryLabel}>獲得pt</span>
+                  </div>
+                  <div className={`${styles.summaryItem} ${styles.summaryCompleted}`}>
+                    <span className={styles.summaryValue}>{weeklySummary.completedTotal}</span>
+                    <span className={styles.summaryLabel}>完了</span>
+                  </div>
+                  <div className={`${styles.summaryItem} ${styles.summaryIncomplete}`}>
+                    <span className={styles.summaryValue}>{weeklySummary.incompleteSingleTasks}</span>
+                    <span className={styles.summaryLabel}>未完了</span>
+                  </div>
+                  <div className={`${styles.summaryItem} ${styles.summaryProject}`}>
+                    <span className={styles.summaryValue}>{weeklySummary.completedProjectSteps}</span>
+                    <span className={styles.summaryLabel}>長期タスク</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {summaryMode === 'month' && (
+              <div className={styles.summaryContent}>
+                <span className={styles.periodLabel}>
+                  今月 {formatMonthLabel(currentMonthStart)}
+                </span>
+                <div className={styles.summaryGrid}>
+                  <div className={`${styles.summaryItem} ${styles.summaryPoints}`}>
+                    <span className={styles.summaryValue}>{monthlySummary.points}</span>
+                    <span className={styles.summaryLabel}>獲得pt</span>
+                  </div>
+                  <div className={`${styles.summaryItem} ${styles.summaryCompleted}`}>
+                    <span className={styles.summaryValue}>{monthlySummary.completedTotal}</span>
+                    <span className={styles.summaryLabel}>完了</span>
+                  </div>
+                  <div className={`${styles.summaryItem} ${styles.summaryIncomplete}`}>
+                    <span className={styles.summaryValue}>{monthlySummary.incompleteSingleTasks}</span>
+                    <span className={styles.summaryLabel}>未完了</span>
+                  </div>
+                  <div className={`${styles.summaryItem} ${styles.summaryProject}`}>
+                    <span className={styles.summaryValue}>{monthlySummary.completedProjectSteps}</span>
+                    <span className={styles.summaryLabel}>長期タスク</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {summaryMode === 'compare' && (
+              <div className={styles.compareList}>
+                <div className={styles.compareBlock}>
+                  <div className={styles.compareHeader}>
+                    <span>今週 / 前週</span>
+                    <span>{formatRangeLabel(previousWeekStart, previousWeekEnd)}</span>
+                  </div>
+                  <div className={styles.compareGrid}>
+                    <span>ポイント</span>
+                    <strong>{formatDiff(weeklySummary.points - previousWeeklySummary.points)}pt</strong>
+                    <span>完了</span>
+                    <strong>{formatDiff(weeklySummary.completedTotal - previousWeeklySummary.completedTotal)}</strong>
+                    <span>未完了</span>
+                    <strong>{formatDiff(weeklySummary.incompleteSingleTasks - previousWeeklySummary.incompleteSingleTasks)}</strong>
+                  </div>
+                </div>
+
+                <div className={styles.compareBlock}>
+                  <div className={styles.compareHeader}>
+                    <span>今月 / 前月</span>
+                    <span>{formatMonthLabel(previousMonthStart)}</span>
+                  </div>
+                  <div className={styles.compareGrid}>
+                    <span>ポイント</span>
+                    <strong>{formatDiff(monthlySummary.points - previousMonthlySummary.points)}pt</strong>
+                    <span>完了</span>
+                    <strong>{formatDiff(monthlySummary.completedTotal - previousMonthlySummary.completedTotal)}</strong>
+                    <span>未完了</span>
+                    <strong>{formatDiff(monthlySummary.incompleteSingleTasks - previousMonthlySummary.incompleteSingleTasks)}</strong>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : view === 'detail' && selectedDateKey && selectedStats ? (
           <div className={styles.detailView}>
-            <button className={styles.backButton} onClick={() => setSelectedDateKey(null)}>
+            <button className={styles.backButton} onClick={openCalendar}>
               ← カレンダーに戻る
             </button>
 
@@ -203,7 +473,7 @@ const CalendarPanel: React.FC = () => {
                     key={index}
                     type="button"
                     disabled={!day}
-                    onClick={() => day && setSelectedDateKey(dateKey)}
+                    onClick={() => day && openDetail(dateKey)}
                     className={`${styles.dayCell} ${
                       day === today.getDate() && currentMonth === today.getMonth() ? styles.today : ''
                     } ${day ? '' : styles.emptyDay}`}

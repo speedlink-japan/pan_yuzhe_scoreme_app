@@ -195,6 +195,7 @@ export default function Home() {
   const [panelZIndices, setPanelZIndicesState] = useState<Record<PanelType, number>>(defaultZIndices)
   const [isHydrated, setIsHydrated] = useState(false)
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('normal')
+  const [calendarSummaryRequestKey, setCalendarSummaryRequestKey] = useState(0)
 
   // 初期化：ストレージからレイアウト状態を復元 & ウィンドウサイズ監視
   useEffect(() => {
@@ -288,6 +289,15 @@ export default function Home() {
     })
   }
 
+  const openCalendarSummary = () => {
+    setVisiblePanels(prev => {
+      if (prev.includes('calendar')) return prev
+      return [...prev, 'calendar']
+    })
+    handleBringToFront('calendar')
+    setCalendarSummaryRequestKey(prev => prev + 1)
+  }
+
   const handleReset = () => {
     // 現在のウィンドウサイズに基づいてデフォルトレイアウトを適用
     const width = typeof window !== 'undefined' ? window.innerWidth : 1024
@@ -311,6 +321,7 @@ export default function Home() {
         todoPoints={todoPoints}
         studyPoints={studyPoints}
         notebookPoints={notebookPoints}
+        onTotalClick={openCalendarSummary}
       />
 
       <div className={styles.dashboardContainer}>
@@ -349,7 +360,7 @@ export default function Home() {
             onBringToFront={() => handleBringToFront('calendar')}
             hideLayoutControls={layoutMode === 'fullscreen'}
           >
-            <CalendarPanel />
+            <CalendarPanel summaryRequestKey={calendarSummaryRequestKey} />
           </DraggablePanelWrapper>
         )}
 

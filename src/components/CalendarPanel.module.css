@@ -9,17 +9,39 @@
 }
 
 .header {
+  align-items: center;
   background: linear-gradient(135deg, #D4E8FF 0%, #B3D9FF 100%);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
   padding: 1rem;
   color: white;
   font-weight: bold;
   border-bottom: 2px solid #8FC7FF;
-  text-align: center;
 }
 
 .header h2 {
   margin: 0;
   font-size: 1.2rem;
+}
+
+.headerButton {
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #2D6EA3;
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 9px;
+  transition: all 0.2s;
+}
+
+.headerButton:hover {
+  background: #FFFFFF;
+  transform: translateY(-1px);
 }
 
 .content {
@@ -211,6 +233,11 @@
   border-color: rgba(255, 166, 111, 0.42);
 }
 
+.summaryPoints {
+  background: linear-gradient(135deg, rgba(212, 232, 255, 0.48), rgba(179, 217, 255, 0.28));
+  border-color: rgba(143, 199, 255, 0.46);
+}
+
 .summaryValue {
   color: #1F2D3D;
   font-size: 20px;
@@ -293,4 +320,106 @@
   font-size: 12px;
   padding: 14px;
   text-align: center;
+}
+
+.summaryView {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+}
+
+.segmentedControl {
+  background: #F3F7FB;
+  border: 1px solid #D8E2EF;
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  padding: 3px;
+}
+
+.segmentButton {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #526273;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 0;
+  padding: 7px 4px;
+}
+
+.segmentActive {
+  background: #FFFFFF;
+  color: #2D6EA3;
+  box-shadow: 0 1px 4px rgba(31, 45, 61, 0.1);
+}
+
+.summaryContent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.periodLabel {
+  color: #66788A;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.compareList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compareBlock {
+  background: #FFFFFF;
+  border: 1px solid #E5ECF3;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+}
+
+.compareHeader {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.compareHeader span:first-child {
+  color: #1F2D3D;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.compareHeader span:last-child {
+  color: #6A7C8F;
+  font-size: 11px;
+  text-align: right;
+}
+
+.compareGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  color: #526273;
+  font-size: 12px;
+}
+
+.compareGrid strong {
+  color: #1F2D3D;
+  text-align: right;
 }
