@@ -23,6 +23,8 @@ export interface PanelPosition {
 
 type LayoutMode = 'normal' | 'fullscreen'
 
+const CHARACTER_PURCHASE_SPENT_STORAGE_KEY = 'myscore.character.purchase.spent.v1'
+
 // デスクトップ用デフォルトレイアウト (1024px以上)
 // NotebookPanel（自由メモ）を中央に大型配置、周りに他のパネル配置
 const defaultPositionsPC: Record<PanelType, PanelPosition> = {
@@ -189,6 +191,7 @@ export default function Home() {
   const [todoPoints, setTodoPoints] = useState(0)
   const [studyPoints, setStudyPoints] = useState(0)
   const [notebookPoints, setNotebookPoints] = useState(0)
+  const [characterSpentPoints, setCharacterSpentPoints] = useState(0)
   const [isLocked, setIsLockedState] = useState(false)
   const [panelPositions, setPanelPositionsState] = useState<Record<PanelType, PanelPosition>>(defaultPositions)
   const [fullscreenPanelPositions, setFullscreenPanelPositions] = useState<Record<PanelType, PanelPosition>>(defaultPositions)
@@ -216,8 +219,17 @@ export default function Home() {
     }
 
     initializeLayout()
+    const savedCharacterSpentPoints = Number(window.localStorage.getItem(CHARACTER_PURCHASE_SPENT_STORAGE_KEY) || '0')
+    if (Number.isFinite(savedCharacterSpentPoints) && savedCharacterSpentPoints > 0) {
+      setCharacterSpentPoints(savedCharacterSpentPoints)
+    }
     setIsHydrated(true)
   }, [])
+
+  useEffect(() => {
+    if (!isHydrated) return
+    window.localStorage.setItem(CHARACTER_PURCHASE_SPENT_STORAGE_KEY, String(characterSpentPoints))
+  }, [characterSpentPoints, isHydrated])
 
   // レイアウト状態が変更されたときに保存
   useEffect(() => {
@@ -311,7 +323,8 @@ export default function Home() {
     setLayoutMode('normal') // リセット時は通常モードに戻す
   }
 
-  const totalPoints = todoPoints + studyPoints + notebookPoints
+  const earnedTotalPoints = todoPoints + studyPoints + notebookPoints
+  const totalPoints = Math.max(0, earnedTotalPoints - characterSpentPoints)
   const displayedPanelPositions = layoutMode === 'fullscreen' ? fullscreenPanelPositions : panelPositions
 
   return (
@@ -386,7 +399,10 @@ export default function Home() {
             onBringToFront={() => handleBringToFront('character')}
             hideLayoutControls={layoutMode === 'fullscreen'}
           >
-            <CharacterPanel />
+            <CharacterPanel
+              availablePoints={totalPoints}
+              onSpendPoints={(points) => setCharacterSpentPoints(prev => prev + points)}
+            />
           </DraggablePanelWrapper>
         )}
       </div>

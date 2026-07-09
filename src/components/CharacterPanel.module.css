@@ -219,6 +219,19 @@
   white-space: nowrap;
 }
 
+.notice {
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(238, 221, 216, 0.9);
+  border-radius: 7px;
+  color: #8A665E;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: -2px 0 0;
+  min-height: 31px;
+  padding: 7px 8px;
+}
+
 .optionGrid {
   display: grid;
   gap: 6px;
