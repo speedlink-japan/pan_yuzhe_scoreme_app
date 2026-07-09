@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import styles from './TodoPanel.module.css'
 import {
   Difficulty,
@@ -16,6 +16,17 @@ import {
   getTodoTimestamp,
   normalizeTodoSession,
 } from '@/utils/todoSession'
+import {
+  clearTodoSessionPendingSync,
+  getLocalTodoSessionUpdatedAt,
+  hasTodoSessionPendingSync,
+  isRemoteTodoSessionNewer,
+  isTodoSupabaseSyncConfigured,
+  loadRemoteTodoSession,
+  markTodoSessionPendingSync,
+  saveLocalTodoSession,
+  saveRemoteTodoSession,
+} from '@/utils/todoSupabaseSync'
 
 type StepDraft = { id: string; text: string }
 type DraggedProjectFormItem =
@@ -77,12 +88,14 @@ interface TodoPanelProps {
 }
 
 const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
-  const [todos, setTodos] = useState<TodoItem[]>(() => loadTodoSession().todos)
+  const initialTodoSession = useRef(loadTodoSession())
+  const skipNextSaveRef = useRef(true)
+  const [todos, setTodos] = useState<TodoItem[]>(initialTodoSession.current.todos)
 
   const [newTodoText, setNewTodoText] = useState('')
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium')
   const [activeTab, setActiveTab] = useState<'tasks' | 'create'>('tasks')
-  const [earnedPoints, setEarnedPoints] = useState(() => loadTodoSession().earnedPoints)
+  const [earnedPoints, setEarnedPoints] = useState(initialTodoSession.current.earnedPoints)
   const [hideCompletedTasks, setHideCompletedTasks] = useState(false)
   
   // プロジェクト作成フォーム用
@@ -120,12 +133,76 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
 
   React.useEffect(() => {
     const todoSession = { todos, earnedPoints }
-    window.localStorage.setItem(
-      TODO_SESSION_STORAGE_KEY,
-      JSON.stringify(todoSession)
-    )
+
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false
+      window.dispatchEvent(new CustomEvent('todo-session-updated', { detail: todoSession }))
+      return
+    }
+
+    const updatedAt = getTodoTimestamp()
+    saveLocalTodoSession(todoSession, updatedAt)
     window.dispatchEvent(new CustomEvent('todo-session-updated', { detail: todoSession }))
+
+    if (!isTodoSupabaseSyncConfigured()) return
+
+    saveRemoteTodoSession(todoSession, updatedAt)
+      .then(() => {
+        clearTodoSessionPendingSync()
+      })
+      .catch(() => {
+        markTodoSessionPendingSync()
+      })
   }, [todos, earnedPoints])
+
+  React.useEffect(() => {
+    if (!isTodoSupabaseSyncConfigured()) return
+
+    let isActive = true
+
+    const syncFromRemote = async () => {
+      try {
+        const remoteSession = await loadRemoteTodoSession()
+        if (!isActive) return
+
+        const localUpdatedAt = getLocalTodoSessionUpdatedAt()
+
+        if (
+          remoteSession &&
+          !hasTodoSessionPendingSync() &&
+          isRemoteTodoSessionNewer(remoteSession.updatedAt, localUpdatedAt)
+        ) {
+          skipNextSaveRef.current = true
+          setTodos(remoteSession.session.todos)
+          setEarnedPoints(remoteSession.session.earnedPoints)
+          saveLocalTodoSession(remoteSession.session, remoteSession.updatedAt)
+          window.dispatchEvent(
+            new CustomEvent('todo-session-updated', { detail: remoteSession.session })
+          )
+          return
+        }
+
+        const shouldPushLocalSession = !remoteSession || hasTodoSessionPendingSync()
+
+        if (shouldPushLocalSession) {
+          const todoSession = initialTodoSession.current
+          const updatedAt = localUpdatedAt || getTodoTimestamp()
+          await saveRemoteTodoSession(todoSession, updatedAt)
+          if (isActive) {
+            clearTodoSessionPendingSync()
+          }
+        }
+      } catch {
+        markTodoSessionPendingSync()
+      }
+    }
+
+    syncFromRemote()
+
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   React.useEffect(() => {
     if (!movedMilestoneId) return
