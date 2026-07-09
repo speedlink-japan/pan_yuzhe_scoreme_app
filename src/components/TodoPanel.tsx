@@ -2,40 +2,20 @@
 
 import React, { useState } from 'react'
 import styles from './TodoPanel.module.css'
-
-type Difficulty = 'easy' | 'medium' | 'hard'
-
-interface Step {
-  id: string
-  text: string
-  completed: boolean
-}
-
-interface Milestone {
-  id: string
-  name: string
-  steps: Step[]
-  completed: boolean
-}
-
-interface Project {
-  id: string
-  name: string
-  milestones: Milestone[]
-  completed: boolean
-}
-
-interface SingleTask {
-  id: string
-  text: string
-  difficulty: Difficulty
-  completed: boolean
-}
-
-interface TodoItem {
-  type: 'single' | 'project'
-  data: SingleTask | Project
-}
+import {
+  Difficulty,
+  Project,
+  SingleTask,
+  TodoItem,
+  TODO_SESSION_STORAGE_KEY,
+  TODO_DIFFICULTY_POINTS,
+  TODO_MILESTONE_POINTS,
+  TODO_PROJECT_POINTS,
+  TODO_STEP_POINTS,
+  createDemoTodoSession,
+  getTodoTimestamp,
+  normalizeTodoSession,
+} from '@/utils/todoSession'
 
 type StepDraft = { id: string; text: string }
 type DraggedProjectFormItem =
@@ -43,50 +23,18 @@ type DraggedProjectFormItem =
   | { type: 'step'; milestoneId: string | null; stepId: string }
   | { type: 'stepGroup'; milestoneId: string }
 type StepDropTarget = { milestoneId: string | null; stepId?: string }
-type TodoSession = {
-  todos: TodoItem[]
-  earnedPoints: number
-}
-
-const TODO_SESSION_STORAGE_KEY = 'myscore.todo.session.v1'
-
-const defaultTodos: TodoItem[] = [
-  {
-    type: 'single',
-    data: {
-      id: '1',
-      text: 'Sample Easy Task',
-      difficulty: 'easy',
-      completed: false,
-    },
-  },
-  {
-    type: 'single',
-    data: {
-      id: '2',
-      text: 'Sample Medium Task',
-      difficulty: 'medium',
-      completed: false,
-    },
-  },
-]
-
-const loadTodoSession = (): TodoSession => {
+const loadTodoSession = () => {
   if (typeof window === 'undefined') {
-    return { todos: defaultTodos, earnedPoints: 0 }
+    return normalizeTodoSession(null)
   }
 
   try {
     const rawSession = window.localStorage.getItem(TODO_SESSION_STORAGE_KEY)
-    if (!rawSession) return { todos: defaultTodos, earnedPoints: 0 }
+    if (!rawSession) return normalizeTodoSession(null)
 
-    const parsed = JSON.parse(rawSession) as Partial<TodoSession>
-    return {
-      todos: Array.isArray(parsed.todos) ? parsed.todos : defaultTodos,
-      earnedPoints: typeof parsed.earnedPoints === 'number' ? parsed.earnedPoints : 0,
-    }
+    return normalizeTodoSession(JSON.parse(rawSession))
   } catch {
-    return { todos: defaultTodos, earnedPoints: 0 }
+    return normalizeTodoSession(null)
   }
 }
 
@@ -103,25 +51,20 @@ const getDifficultyEmoji = (difficulty: Difficulty): string => {
 const calculatePoints = (item: TodoItem): number => {
   if (item.type === 'single') {
     const task = item.data as SingleTask
-    const difficultyPoints = {
-      easy: 10,
-      medium: 25,
-      hard: 50,
-    }
-    return difficultyPoints[task.difficulty]
+    return TODO_DIFFICULTY_POINTS[task.difficulty]
   } else {
     // プロジェクトポイント計算
     const project = item.data as Project
-    let points = 50 // 基本ボーナス
+    let points = TODO_PROJECT_POINTS
     let completedSteps = 0
     let totalSteps = 0
 
     project.milestones.forEach(milestone => {
-      points += 20 // マイルストーンボーナス
+      points += TODO_MILESTONE_POINTS
       milestone.steps.forEach(step => {
         totalSteps++
         if (step.completed) completedSteps++
-        points += 8 // ステップポイント
+        points += TODO_STEP_POINTS
       })
     })
 
@@ -140,6 +83,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium')
   const [activeTab, setActiveTab] = useState<'tasks' | 'create'>('tasks')
   const [earnedPoints, setEarnedPoints] = useState(() => loadTodoSession().earnedPoints)
+  const [hideCompletedTasks, setHideCompletedTasks] = useState(false)
   
   // プロジェクト作成フォーム用
   interface ProjectFormMilestone {
@@ -175,10 +119,12 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   }, [earnedPoints, onPointsChange])
 
   React.useEffect(() => {
+    const todoSession = { todos, earnedPoints }
     window.localStorage.setItem(
       TODO_SESSION_STORAGE_KEY,
-      JSON.stringify({ todos, earnedPoints })
+      JSON.stringify(todoSession)
     )
+    window.dispatchEvent(new CustomEvent('todo-session-updated', { detail: todoSession }))
   }, [todos, earnedPoints])
 
   React.useEffect(() => {
@@ -213,6 +159,8 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
 
   const addSingleTask = () => {
     if (newTodoText.trim()) {
+      const createdAt = getTodoTimestamp()
+
       setTodos([
         ...todos,
         {
@@ -222,6 +170,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
             text: newTodoText,
             difficulty: selectedDifficulty,
             completed: false,
+            createdAt,
           },
         },
       ])
@@ -236,6 +185,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
       projectFormData.milestones.some(m => m.steps.length > 0)
 
     if (projectFormData.name.trim() && hasSteps) {
+      const createdAt = getTodoTimestamp()
       const unassignedMilestone =
         projectFormData.unassignedSteps.length > 0
           ? [
@@ -246,6 +196,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
                   id: s.id,
                   text: s.text,
                   completed: false,
+                  createdAt,
                 })),
                 completed: false,
               },
@@ -259,6 +210,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           id: s.id,
           text: s.text,
           completed: false,
+          createdAt,
         })),
         completed: false,
       }))
@@ -272,6 +224,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
             name: projectFormData.name,
             milestones: [...unassignedMilestone, ...milestones],
             completed: false,
+            createdAt,
           },
         },
       ])
@@ -532,6 +485,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
 
   const toggleSingleTask = (id: string) => {
     let pointsToAdd = 0
+    const completedAt = getTodoTimestamp()
 
     const newTodos = todos.map(todo => {
       if (todo.type === 'single' && todo.data.id === id) {
@@ -539,17 +493,16 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
         const isNowCompleted = !task.completed
 
         if (isNowCompleted) {
-          const difficultyPoints = {
-            easy: 10,
-            medium: 25,
-            hard: 50,
-          }
-          pointsToAdd = difficultyPoints[task.difficulty]
+          pointsToAdd = TODO_DIFFICULTY_POINTS[task.difficulty]
         }
 
         return {
           ...todo,
-          data: { ...task, completed: isNowCompleted },
+          data: {
+            ...task,
+            completed: isNowCompleted,
+            completedAt: isNowCompleted ? completedAt : undefined,
+          },
         }
       }
       return todo
@@ -561,6 +514,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
 
   const toggleProjectStep = (projectId: string, milestoneId: string, stepId: string) => {
     let pointsToAdd = 0
+    const completedAt = getTodoTimestamp()
 
     const newTodos = todos.map(todo => {
       if (todo.type === 'project' && todo.data.id === projectId) {
@@ -576,9 +530,18 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
             ? {
                 ...m,
                 steps: m.steps.map(s =>
-                  s.id === stepId ? { ...s, completed: !s.completed } : s
+                  s.id === stepId
+                    ? {
+                        ...s,
+                        completed: !s.completed,
+                        completedAt: !s.completed ? completedAt : undefined,
+                      }
+                    : s
                 ),
                 completed: m.steps.every(s => s.id === stepId ? !s.completed : s.completed),
+                completedAt: m.steps.every(s => s.id === stepId ? !s.completed : s.completed)
+                  ? m.completedAt || completedAt
+                  : undefined,
               }
             : m
         )
@@ -595,17 +558,17 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           ?.steps.find(s => s.id === stepId)?.completed
         
         if (isStepNowCompleted) {
-          pointsToAdd += 8 // ステップポイント
+          pointsToAdd += TODO_STEP_POINTS
         }
         
         // マイルストーン完成ボーナス（未完了→完了のとき）
         if (!oldMilestoneCompleted && newMilestoneCompleted) {
-          pointsToAdd += 10
+          pointsToAdd += TODO_MILESTONE_POINTS
         }
         
         // プロジェクト完成ボーナス（未完了→完了のとき）
         if (!oldProjectCompleted && newProjectCompleted) {
-          pointsToAdd += 50
+          pointsToAdd += TODO_PROJECT_POINTS
         }
         
         return {
@@ -614,6 +577,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
             ...project,
             milestones: newMilestones,
             completed: newProjectCompleted,
+            completedAt: newProjectCompleted ? (project.completedAt || completedAt) : undefined,
           },
         }
       }
@@ -628,17 +592,107 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
     setTodos(todos.filter(todo => todo.data.id !== id))
   }
 
-  const clearTodoSession = () => {
+  const hasCompletedRecords = () => {
+    return todos.some(todo => {
+      if (todo.type === 'single') {
+        return (todo.data as SingleTask).completed
+      }
+
+      const project = todo.data as Project
+      return project.milestones.some(milestone =>
+        milestone.steps.some(step => step.completed)
+      )
+    })
+  }
+
+  const clearCompletedRecords = () => {
+    if (!hasCompletedRecords()) {
+      window.alert('完成済みの記録はありません。')
+      return
+    }
+
     if (
       typeof window !== 'undefined' &&
-      window.confirm('TODOセッションを削除しますか？入力したタスクとTODOポイントが初期状態に戻ります。')
+      window.confirm('完成済みの記録を消しますか？獲得済みのTODOポイントは残ります。')
     ) {
-      window.localStorage.removeItem(TODO_SESSION_STORAGE_KEY)
-      setTodos(defaultTodos)
-      setEarnedPoints(0)
+      const activeTodos = todos
+        .map(todo => {
+          if (todo.type === 'single') {
+            const task = todo.data as SingleTask
+            return task.completed ? null : todo
+          }
+
+          const project = todo.data as Project
+          const milestones = project.milestones
+            .map(milestone => {
+              const activeSteps = milestone.steps.filter(step => !step.completed)
+              return {
+                ...milestone,
+                steps: activeSteps,
+                completed: activeSteps.length > 0 && activeSteps.every(step => step.completed),
+              }
+            })
+            .filter(milestone => milestone.steps.length > 0)
+
+          if (milestones.length === 0) return null
+
+          return {
+            ...todo,
+            data: {
+              ...project,
+              milestones,
+              completed: milestones.length > 0 && milestones.every(milestone => milestone.completed),
+            },
+          }
+        })
+        .filter((todo): todo is TodoItem => todo !== null)
+
+      setTodos(activeTodos)
       setActiveTab('tasks')
     }
   }
+
+  const loadDemoTodos = () => {
+    if (
+      typeof window !== 'undefined' &&
+      window.confirm('確認用のサンプルTODOに置き換えますか？現在のTODO内容は上書きされます。')
+    ) {
+      const demoSession = createDemoTodoSession()
+      setTodos(demoSession.todos)
+      setEarnedPoints(demoSession.earnedPoints)
+      setHideCompletedTasks(false)
+      setActiveTab('tasks')
+    }
+  }
+
+  const visibleTodos = hideCompletedTasks
+    ? todos
+        .map(todo => {
+          if (todo.type === 'single') {
+            const task = todo.data as SingleTask
+            return task.completed ? null : todo
+          }
+
+          const project = todo.data as Project
+          const visibleMilestones = project.milestones
+            .map(milestone => ({
+              ...milestone,
+              steps: milestone.steps.filter(step => !step.completed),
+            }))
+            .filter(milestone => milestone.steps.length > 0)
+
+          if (visibleMilestones.length === 0) return null
+
+          return {
+            ...todo,
+            data: {
+              ...project,
+              milestones: visibleMilestones,
+            },
+          }
+        })
+        .filter((todo): todo is TodoItem => todo !== null)
+    : todos
 
   return (
     <div className={styles.panel}>
@@ -665,7 +719,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
       <div className={styles.content}>
         {activeTab === 'tasks' ? (
           <div className={styles.todoList}>
-            {todos.map(todo => (
+            {visibleTodos.map(todo => (
               <div key={todo.data.id} className={styles.todoItem}>
                 <div className={styles.todoContent}>
                   {todo.type === 'single' ? (
@@ -1153,14 +1207,36 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           </div>
         )}
       </div>
-      <button
-        type="button"
-        className={styles.sessionDeleteBtn}
-        onClick={clearTodoSession}
-        title="TODOセッションを削除"
-      >
-        セッション削除
-      </button>
+      <div className={styles.toolButtons}>
+        <button
+          type="button"
+          className={styles.toolButton}
+          onClick={clearCompletedRecords}
+          title="完成済みの記録を消す"
+          aria-label="完成済みの記録を消す"
+        >
+          🧹
+        </button>
+        <button
+          type="button"
+          className={styles.toolButton}
+          onClick={loadDemoTodos}
+          title="確認用サンプルTODOを入れる"
+          aria-label="確認用サンプルTODOを入れる"
+        >
+          🧪
+        </button>
+        <button
+          type="button"
+          className={`${styles.toolButton} ${hideCompletedTasks ? styles.toolButtonActive : ''}`}
+          onClick={() => setHideCompletedTasks(prev => !prev)}
+          title="完成したタスクを非表示"
+          aria-label="完成したタスクを非表示"
+          aria-pressed={hideCompletedTasks}
+        >
+          {hideCompletedTasks ? '🙈' : '👁️'}
+        </button>
+      </div>
     </div>
   )
 }

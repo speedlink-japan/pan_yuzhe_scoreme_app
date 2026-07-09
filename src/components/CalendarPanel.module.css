@@ -52,16 +52,65 @@
 }
 
 .dayCell {
+  appearance: none;
   aspect-ratio: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  min-width: 0;
+  min-height: 42px;
+  padding: 4px 3px;
   border: 1px solid #E0E0E0;
   border-radius: 6px;
   font-size: 14px;
   background: #FAFAFA;
   cursor: pointer;
   transition: all 0.2s;
+  font-family: inherit;
+  color: inherit;
+}
+
+.emptyDay {
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
+}
+
+.emptyDay:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+.dayNumber {
+  line-height: 1;
+}
+
+.todoStatsBar {
+  width: 78%;
+  height: 5px;
+  display: flex;
+  gap: 1px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.statBarSegment {
+  min-width: 4px;
+  height: 100%;
+}
+
+.completedSingle {
+  background: linear-gradient(90deg, #A3E4D7 0%, #77D8C3 100%);
+}
+
+.incompleteSingle {
+  background: linear-gradient(90deg, #FFE7A8 0%, #FFD36E 100%);
+}
+
+.completedProject {
+  background: linear-gradient(90deg, #FFC7A6 0%, #FFA66F 100%);
 }
 
 .dayCell:hover {
@@ -76,6 +125,10 @@
   border-color: #8FC7FF;
 }
 
+.dayCell.today .todoStatsBar {
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .todayInfo {
   text-align: center;
   font-size: 12px;
@@ -83,4 +136,161 @@
   padding: 8px;
   background: #F5F5F5;
   border-radius: 6px;
+}
+
+.detailView {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+}
+
+.backButton {
+  align-self: flex-start;
+  border: 1px solid #D8E2EF;
+  border-radius: 6px;
+  background: #FFFFFF;
+  color: #4D5F76;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 7px 9px;
+  transition: all 0.2s;
+}
+
+.backButton:hover {
+  border-color: #B3D9FF;
+  color: #2D6EA3;
+}
+
+.detailHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detailDate {
+  color: #1F2D3D;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.detailCaption {
+  color: #66788A;
+  font-size: 12px;
+}
+
+.detailSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.summaryItem {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 9px 8px;
+}
+
+.summaryCompleted {
+  background: linear-gradient(135deg, rgba(163, 228, 215, 0.28), rgba(119, 216, 195, 0.2));
+  border-color: rgba(119, 216, 195, 0.42);
+}
+
+.summaryIncomplete {
+  background: linear-gradient(135deg, rgba(255, 231, 168, 0.32), rgba(255, 211, 110, 0.22));
+  border-color: rgba(255, 211, 110, 0.45);
+}
+
+.summaryProject {
+  background: linear-gradient(135deg, rgba(255, 199, 166, 0.34), rgba(255, 166, 111, 0.22));
+  border-color: rgba(255, 166, 111, 0.42);
+}
+
+.summaryValue {
+  color: #1F2D3D;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.summaryLabel {
+  color: #526273;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.historySection {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.historySection h3 {
+  color: #1F2D3D;
+  font-size: 14px;
+  margin: 0;
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.historyItem {
+  align-items: center;
+  background: #FFFFFF;
+  border: 1px solid #E5ECF3;
+  border-radius: 8px;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 9px 10px;
+}
+
+.historyMain {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.historyTitle {
+  color: #233142;
+  font-size: 13px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historyMeta {
+  color: #6A7C8F;
+  font-size: 11px;
+}
+
+.historyPoints {
+  color: #2F9E7E;
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.emptyHistory {
+  background: #F7FAFC;
+  border: 1px dashed #D8E2EF;
+  border-radius: 8px;
+  color: #66788A;
+  font-size: 12px;
+  padding: 14px;
+  text-align: center;
 }
