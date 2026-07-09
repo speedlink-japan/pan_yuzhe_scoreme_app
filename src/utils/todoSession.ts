@@ -42,6 +42,7 @@ export interface TodoItem {
 export interface TodoSession {
   todos: TodoItem[]
   earnedPoints: number
+  archivedPointHistory: TodoPointHistoryItem[]
 }
 
 export interface TodoDailyStats {
@@ -111,6 +112,7 @@ export const createDemoTodoSession = (): TodoSession => {
 
   return {
     earnedPoints: 71,
+    archivedPointHistory: [],
     todos: [
       {
         type: 'single',
@@ -303,12 +305,49 @@ const normalizeTodoItems = (
   }, [])
 }
 
+const isPointHistoryType = (value: unknown): value is TodoPointHistoryItem['type'] =>
+  value === 'single' || value === 'project-step' || value === 'milestone' || value === 'project'
+
+const normalizePointHistoryItem = (
+  value: Partial<TodoPointHistoryItem>,
+  fallbackDate: string
+): TodoPointHistoryItem | null => {
+  if (
+    typeof value.id !== 'string' ||
+    typeof value.title !== 'string' ||
+    !isPointHistoryType(value.type) ||
+    typeof value.points !== 'number'
+  ) {
+    return null
+  }
+
+  return {
+    id: value.id,
+    title: value.title,
+    type: value.type,
+    points: value.points,
+    completedAt: normalizeDate(value.completedAt, fallbackDate),
+  }
+}
+
+const normalizePointHistory = (
+  value: Partial<TodoPointHistoryItem>[] | undefined,
+  fallbackDate: string
+): TodoPointHistoryItem[] => {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map(item => normalizePointHistoryItem(item, fallbackDate))
+    .filter((item): item is TodoPointHistoryItem => item !== null)
+}
+
 export const normalizeTodoSession = (
   value: Partial<TodoSession> | null | undefined,
   fallbackDate = getTodoTimestamp()
 ): TodoSession => ({
   todos: normalizeTodoItems(value?.todos, fallbackDate),
   earnedPoints: typeof value?.earnedPoints === 'number' ? value.earnedPoints : 0,
+  archivedPointHistory: normalizePointHistory(value?.archivedPointHistory, fallbackDate),
 })
 
 export const getTodoDateKey = (dateValue: string): string => {
@@ -339,8 +378,11 @@ const ensureDailyStats = (
   return statsByDate[date]
 }
 
-export const getTodoDailyStats = (todos: TodoItem[]): Record<string, TodoDailyStats> => {
-  return todos.reduce<Record<string, TodoDailyStats>>((statsByDate, todo) => {
+export const getTodoDailyStats = (
+  todos: TodoItem[],
+  archivedPointHistory: TodoPointHistoryItem[] = []
+): Record<string, TodoDailyStats> => {
+  const statsByDate = todos.reduce<Record<string, TodoDailyStats>>((statsByDate, todo) => {
     if (todo.type === 'single') {
       const task = todo.data as SingleTask
 
@@ -364,6 +406,20 @@ export const getTodoDailyStats = (todos: TodoItem[]): Record<string, TodoDailySt
 
     return statsByDate
   }, {})
+
+  archivedPointHistory.forEach(item => {
+    const stats = ensureDailyStats(statsByDate, getTodoDateKey(item.completedAt))
+
+    if (item.type === 'single') {
+      stats.completedSingleTasks += 1
+    }
+
+    if (item.type === 'project-step') {
+      stats.completedProjectSteps += 1
+    }
+  })
+
+  return statsByDate
 }
 
 const getLatestCompletedAt = (completedDates: string[]): string | undefined => {
@@ -382,13 +438,27 @@ const getLatestCompletedAt = (completedDates: string[]): string | undefined => {
 
 export const getTodoPointHistoryForDate = (
   todos: TodoItem[],
-  date: string
+  date: string,
+  archivedPointHistory: TodoPointHistoryItem[] = []
 ): TodoPointHistoryItem[] => {
-  const history = todos.reduce<TodoPointHistoryItem[]>((items, todo) => {
+  const history = getTodoPointHistory(todos).filter(item => getTodoDateKey(item.completedAt) === date)
+  const archivedHistory = archivedPointHistory.filter(
+    item => getTodoDateKey(item.completedAt) === date
+  )
+
+  return mergeTodoPointHistory(archivedHistory, history).sort((a, b) => {
+    const aTime = new Date(a.completedAt).getTime()
+    const bTime = new Date(b.completedAt).getTime()
+    return aTime - bTime
+  })
+}
+
+export const getTodoPointHistory = (todos: TodoItem[]): TodoPointHistoryItem[] => {
+  return todos.reduce<TodoPointHistoryItem[]>((items, todo) => {
     if (todo.type === 'single') {
       const task = todo.data as SingleTask
 
-      if (task.completed && task.completedAt && getTodoDateKey(task.completedAt) === date) {
+      if (task.completed && task.completedAt) {
         items.push({
           id: `single-${task.id}`,
           title: task.text,
@@ -405,7 +475,7 @@ export const getTodoPointHistoryForDate = (
 
     project.milestones.forEach(milestone => {
       milestone.steps.forEach(step => {
-        if (step.completed && step.completedAt && getTodoDateKey(step.completedAt) === date) {
+        if (step.completed && step.completedAt) {
           items.push({
             id: `step-${project.id}-${milestone.id}-${step.id}`,
             title: `${project.name} / ${step.text}`,
@@ -426,8 +496,7 @@ export const getTodoPointHistoryForDate = (
 
       if (
         milestone.completed &&
-        milestoneCompletedAt &&
-        getTodoDateKey(milestoneCompletedAt) === date
+        milestoneCompletedAt
       ) {
         items.push({
           id: `milestone-${project.id}-${milestone.id}`,
@@ -439,7 +508,7 @@ export const getTodoPointHistoryForDate = (
       }
     })
 
-    if (project.completed && project.completedAt && getTodoDateKey(project.completedAt) === date) {
+    if (project.completed && project.completedAt) {
       items.push({
         id: `project-${project.id}`,
         title: project.name,
@@ -451,8 +520,23 @@ export const getTodoPointHistoryForDate = (
 
     return items
   }, [])
+}
 
-  return history.sort((a, b) => {
+export const mergeTodoPointHistory = (
+  currentHistory: TodoPointHistoryItem[],
+  incomingHistory: TodoPointHistoryItem[]
+): TodoPointHistoryItem[] => {
+  const historyById = new Map<string, TodoPointHistoryItem>()
+
+  currentHistory.forEach(item => {
+    historyById.set(item.id, item)
+  })
+
+  incomingHistory.forEach(item => {
+    historyById.set(item.id, item)
+  })
+
+  return Array.from(historyById.values()).sort((a, b) => {
     const aTime = new Date(a.completedAt).getTime()
     const bTime = new Date(b.completedAt).getTime()
     return aTime - bTime

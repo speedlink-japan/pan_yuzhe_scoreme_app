@@ -89,8 +89,8 @@ const CalendarPanel: React.FC = () => {
   ]
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const todoStatsByDate = React.useMemo(
-    () => getTodoDailyStats(todoSession.todos),
-    [todoSession.todos]
+    () => getTodoDailyStats(todoSession.todos, todoSession.archivedPointHistory),
+    [todoSession.todos, todoSession.archivedPointHistory]
   )
   const selectedStats = selectedDateKey
     ? todoStatsByDate[selectedDateKey] || emptyStats(selectedDateKey)
@@ -98,9 +98,13 @@ const CalendarPanel: React.FC = () => {
   const pointHistory = React.useMemo(
     () =>
       selectedDateKey
-        ? getTodoPointHistoryForDate(todoSession.todos, selectedDateKey)
+        ? getTodoPointHistoryForDate(
+            todoSession.todos,
+            selectedDateKey,
+            todoSession.archivedPointHistory
+          )
         : [],
-    [selectedDateKey, todoSession.todos]
+    [selectedDateKey, todoSession.todos, todoSession.archivedPointHistory]
   )
 
   React.useEffect(() => {

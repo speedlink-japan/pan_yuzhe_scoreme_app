@@ -13,8 +13,11 @@ import {
   TODO_PROJECT_POINTS,
   TODO_STEP_POINTS,
   createDemoTodoSession,
+  getTodoPointHistory,
   getTodoTimestamp,
+  mergeTodoPointHistory,
   normalizeTodoSession,
+  TodoPointHistoryItem,
 } from '@/utils/todoSession'
 import {
   clearTodoSessionPendingSync,
@@ -96,6 +99,9 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium')
   const [activeTab, setActiveTab] = useState<'tasks' | 'create'>('tasks')
   const [earnedPoints, setEarnedPoints] = useState(initialTodoSession.current.earnedPoints)
+  const [archivedPointHistory, setArchivedPointHistory] = useState<TodoPointHistoryItem[]>(
+    initialTodoSession.current.archivedPointHistory
+  )
   const [hideCompletedTasks, setHideCompletedTasks] = useState(false)
   
   // プロジェクト作成フォーム用
@@ -132,7 +138,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   }, [earnedPoints, onPointsChange])
 
   React.useEffect(() => {
-    const todoSession = { todos, earnedPoints }
+    const todoSession = { todos, earnedPoints, archivedPointHistory }
 
     if (skipNextSaveRef.current) {
       skipNextSaveRef.current = false
@@ -153,7 +159,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
       .catch(() => {
         markTodoSessionPendingSync()
       })
-  }, [todos, earnedPoints])
+  }, [todos, earnedPoints, archivedPointHistory])
 
   React.useEffect(() => {
     if (!isTodoSupabaseSyncConfigured()) return
@@ -175,6 +181,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           skipNextSaveRef.current = true
           setTodos(remoteSession.session.todos)
           setEarnedPoints(remoteSession.session.earnedPoints)
+          setArchivedPointHistory(remoteSession.session.archivedPointHistory)
           saveLocalTodoSession(remoteSession.session, remoteSession.updatedAt)
           window.dispatchEvent(
             new CustomEvent('todo-session-updated', { detail: remoteSession.session })
@@ -692,6 +699,10 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
       typeof window !== 'undefined' &&
       window.confirm('完成済みの記録を消しますか？獲得済みのTODOポイントは残ります。')
     ) {
+      const nextArchivedPointHistory = mergeTodoPointHistory(
+        archivedPointHistory,
+        getTodoPointHistory(todos)
+      )
       const activeTodos = todos
         .map(todo => {
           if (todo.type === 'single') {
@@ -725,6 +736,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
         .filter((todo): todo is TodoItem => todo !== null)
 
       setTodos(activeTodos)
+      setArchivedPointHistory(nextArchivedPointHistory)
       setActiveTab('tasks')
     }
   }
@@ -737,6 +749,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
       const demoSession = createDemoTodoSession()
       setTodos(demoSession.todos)
       setEarnedPoints(demoSession.earnedPoints)
+      setArchivedPointHistory(demoSession.archivedPointHistory)
       setHideCompletedTasks(false)
       setActiveTab('tasks')
     }
