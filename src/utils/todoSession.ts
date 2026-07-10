@@ -50,6 +50,7 @@ export interface TodoDailyStats {
   completedSingleTasks: number
   incompleteSingleTasks: number
   completedProjectSteps: number
+  plannedPoints: number
 }
 
 export interface TodoPointHistoryItem {
@@ -223,8 +224,8 @@ const normalizeCompletedDate = (
   value: unknown,
   fallback: string
 ): string | undefined => {
-  if (!completed) return undefined
-  return normalizeDate(value, fallback)
+  if (typeof value === 'string' && value.length > 0) return value
+  return completed ? fallback : undefined
 }
 
 const normalizeStep = (value: Partial<Step>, fallbackDate: string): Step => {
@@ -365,6 +366,7 @@ const createEmptyDailyStats = (date: string): TodoDailyStats => ({
   completedSingleTasks: 0,
   incompleteSingleTasks: 0,
   completedProjectSteps: 0,
+  plannedPoints: 0,
 })
 
 const ensureDailyStats = (
@@ -389,7 +391,9 @@ export const getTodoDailyStats = (
       if (task.completed && task.completedAt) {
         ensureDailyStats(statsByDate, getTodoDateKey(task.completedAt)).completedSingleTasks += 1
       } else if (!task.completed) {
-        ensureDailyStats(statsByDate, getTodoDateKey(task.createdAt)).incompleteSingleTasks += 1
+        const stats = ensureDailyStats(statsByDate, getTodoDateKey(task.createdAt))
+        stats.incompleteSingleTasks += 1
+        stats.plannedPoints += TODO_DIFFICULTY_POINTS[task.difficulty]
       }
 
       return statsByDate
@@ -400,6 +404,8 @@ export const getTodoDailyStats = (
       milestone.steps.forEach(step => {
         if (step.completed && step.completedAt) {
           ensureDailyStats(statsByDate, getTodoDateKey(step.completedAt)).completedProjectSteps += 1
+        } else if (!step.completed) {
+          ensureDailyStats(statsByDate, getTodoDateKey(step.createdAt)).plannedPoints += TODO_STEP_POINTS
         }
       })
     })

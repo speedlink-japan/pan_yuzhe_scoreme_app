@@ -44,6 +44,7 @@ const emptyStats = (date: string): TodoDailyStats => ({
   completedSingleTasks: 0,
   incompleteSingleTasks: 0,
   completedProjectSteps: 0,
+  plannedPoints: 0,
 })
 
 const pointHistoryLabels: Record<TodoPointHistoryItem['type'], string> = {
@@ -122,12 +123,14 @@ const summarizeRange = (
         completedSingleTasks: summary.completedSingleTasks + item.completedSingleTasks,
         incompleteSingleTasks: summary.incompleteSingleTasks + item.incompleteSingleTasks,
         completedProjectSteps: summary.completedProjectSteps + item.completedProjectSteps,
+        plannedPoints: summary.plannedPoints + item.plannedPoints,
       }
     },
     {
       completedSingleTasks: 0,
       incompleteSingleTasks: 0,
       completedProjectSteps: 0,
+      plannedPoints: 0,
     }
   )
   const points = pointHistory
@@ -332,8 +335,8 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
                     <span className={styles.summaryLabel}>完了</span>
                   </div>
                   <div className={`${styles.summaryItem} ${styles.summaryIncomplete}`}>
-                    <span className={styles.summaryValue}>{weeklySummary.incompleteSingleTasks}</span>
-                    <span className={styles.summaryLabel}>未完了</span>
+                    <span className={styles.summaryValue}>{weeklySummary.plannedPoints}</span>
+                    <span className={styles.summaryLabel}>予定pt</span>
                   </div>
                   <div className={`${styles.summaryItem} ${styles.summaryProject}`}>
                     <span className={styles.summaryValue}>{weeklySummary.completedProjectSteps}</span>
@@ -358,8 +361,8 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
                     <span className={styles.summaryLabel}>完了</span>
                   </div>
                   <div className={`${styles.summaryItem} ${styles.summaryIncomplete}`}>
-                    <span className={styles.summaryValue}>{monthlySummary.incompleteSingleTasks}</span>
-                    <span className={styles.summaryLabel}>未完了</span>
+                    <span className={styles.summaryValue}>{monthlySummary.plannedPoints}</span>
+                    <span className={styles.summaryLabel}>予定pt</span>
                   </div>
                   <div className={`${styles.summaryItem} ${styles.summaryProject}`}>
                     <span className={styles.summaryValue}>{monthlySummary.completedProjectSteps}</span>
@@ -383,6 +386,8 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
                     <strong>{formatDiff(weeklySummary.completedTotal - previousWeeklySummary.completedTotal)}</strong>
                     <span>未完了</span>
                     <strong>{formatDiff(weeklySummary.incompleteSingleTasks - previousWeeklySummary.incompleteSingleTasks)}</strong>
+                    <span>予定pt</span>
+                    <strong>{formatDiff(weeklySummary.plannedPoints - previousWeeklySummary.plannedPoints)}pt</strong>
                   </div>
                 </div>
 
@@ -398,6 +403,8 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
                     <strong>{formatDiff(monthlySummary.completedTotal - previousMonthlySummary.completedTotal)}</strong>
                     <span>未完了</span>
                     <strong>{formatDiff(monthlySummary.incompleteSingleTasks - previousMonthlySummary.incompleteSingleTasks)}</strong>
+                    <span>予定pt</span>
+                    <strong>{formatDiff(monthlySummary.plannedPoints - previousMonthlySummary.plannedPoints)}pt</strong>
                   </div>
                 </div>
               </div>
@@ -426,6 +433,10 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
               <div className={`${styles.summaryItem} ${styles.summaryProject}`}>
                 <span className={styles.summaryValue}>{selectedStats.completedProjectSteps}</span>
                 <span className={styles.summaryLabel}>長期タスク</span>
+              </div>
+              <div className={`${styles.summaryItem} ${styles.summaryPlanned}`}>
+                <span className={styles.summaryValue}>{selectedStats.plannedPoints}</span>
+                <span className={styles.summaryLabel}>予定pt</span>
               </div>
             </div>
 

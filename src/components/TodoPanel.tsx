@@ -703,13 +703,13 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
 
   const clearCompletedRecords = () => {
     if (!hasCompletedRecords()) {
-      window.alert('完成済みの記録はありません。')
+      window.alert('ポイント履歴に貯められる完成済みタスクはありません。')
       return
     }
 
     if (
       typeof window !== 'undefined' &&
-      window.confirm('完成済みの記録を消しますか？獲得済みのTODOポイントは残ります。')
+      window.confirm('完成済みタスクをポイント履歴に貯めますか？獲得済みのTODOポイントと履歴は残ります。')
     ) {
       const nextArchivedPointHistory = mergeTodoPointHistory(
         archivedPointHistory,
@@ -1314,10 +1314,10 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           type="button"
           className={styles.toolButton}
           onClick={clearCompletedRecords}
-          title="完成済みの記録を消す"
-          aria-label="完成済みの記録を消す"
+          title="完成済みをポイント履歴に貯める"
+          aria-label="完成済みをポイント履歴に貯める"
         >
-          🧹
+          💰
         </button>
         <button
           type="button"
