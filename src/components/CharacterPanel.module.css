@@ -52,10 +52,14 @@
 }
 
 .roomStage {
-  aspect-ratio: 16 / 10;
-  background: #FFF7F2;
+  align-items: center;
+  aspect-ratio: 1586 / 992;
+  background: #EADFD8;
   border: 1px solid #F1D9D1;
   border-radius: 8px;
+  container-type: size;
+  display: flex;
+  justify-content: center;
   min-height: 210px;
   overflow: hidden;
   position: relative;
@@ -64,6 +68,7 @@
 
 .roomStageFullscreen {
   aspect-ratio: auto;
+  background: #2F2927;
   border-radius: 16px;
   box-shadow: 0 18px 50px rgba(63, 42, 39, 0.3);
   inset: 16px;
@@ -73,10 +78,19 @@
   z-index: 1000;
 }
 
+.sceneCanvas {
+  aspect-ratio: 1586 / 992;
+  flex: 0 0 auto;
+  height: min(100cqh, calc(100cqw * 992 / 1586));
+  overflow: hidden;
+  position: relative;
+  width: min(100cqw, calc(100cqh * 1586 / 992));
+}
+
 .roomBackground {
   height: 100%;
   inset: 0;
-  object-fit: cover;
+  object-fit: contain;
   position: absolute;
   width: 100%;
 }
@@ -90,43 +104,24 @@
 .characterButton {
   background: transparent;
   border: 0;
-  bottom: 5%;
   cursor: pointer;
-  height: clamp(142px, 49%, 255px);
-  left: 52%;
-  padding: 0;
   object-fit: contain;
+  padding: 0;
   position: absolute;
-  transform: translateX(-50%);
+  transform: translate(-50%, -100%) rotate(var(--scene-rotation));
   transition: filter 0.2s, transform 0.2s;
-  width: clamp(112px, 27%, 210px);
-  z-index: 3;
 }
 
 .characterButton:hover {
-  transform: translateX(-50%) translateY(-2px);
+  filter: brightness(1.03);
+  transform: translate(-50%, calc(-100% - 2px)) rotate(var(--scene-rotation));
 }
 
 .roomItem {
   object-fit: contain;
   position: absolute;
+  transform: translate(-50%, -100%) rotate(var(--scene-rotation));
   transition: opacity 0.2s, transform 0.2s;
-  z-index: 2;
-}
-
-.guitar {
-  bottom: 13%;
-  height: clamp(68px, 24%, 128px);
-  left: 12%;
-  transform: rotate(-9deg);
-}
-
-.laptop {
-  height: clamp(78px, 26%, 150px);
-  right: 13%;
-  top: 34%;
-  transform: rotate(-1deg);
-  width: auto;
 }
 
 .speechBubble {

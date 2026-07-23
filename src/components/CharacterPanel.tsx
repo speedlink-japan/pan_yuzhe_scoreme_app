@@ -11,6 +11,12 @@ import {
   normalizeTodoSession,
 } from '@/utils/todoSession'
 import { persistTodoSession } from '@/utils/todoSupabaseSync'
+import {
+  CHARACTER_SCENE_PLACEMENT,
+  ME_ROOM_SCENE,
+  ROOM_ITEM_SCENES,
+  ScenePlacement,
+} from '@/utils/meRoomScene'
 
 type OutfitId = 'whiteSkirt' | 'uniform'
 type RoomItemId = 'none' | 'laptop'
@@ -44,7 +50,14 @@ const outfitOptions: { id: OutfitId; label: string; description: string; image: 
   },
 ]
 
-const roomItems: { id: RoomItemId; label: string; description: string; image?: string; price: number }[] = [
+const roomItems: {
+  id: RoomItemId
+  label: string
+  description: string
+  image?: string
+  price: number
+  scene?: ScenePlacement
+}[] = [
   { id: 'none', label: '空部屋', description: '家具を置かない状態', price: 0 },
   {
     id: 'laptop',
@@ -52,6 +65,7 @@ const roomItems: { id: RoomItemId; label: string; description: string; image?: s
     description: 'デスクに置いて集中部屋にする',
     image: '/assets/me-room/watercolor-laptop.png',
     price: 40,
+    scene: ROOM_ITEM_SCENES.laptop.placement,
   },
 ]
 
@@ -94,6 +108,15 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
 
   const selectedOutfit = outfitOptions.find(option => option.id === character.outfit) || outfitOptions[0]
   const visibleItem = roomItems.find(item => item.id === activeItem) || roomItems[0]
+
+  const scenePlacementStyle = (placement: ScenePlacement): React.CSSProperties => ({
+    left: `${placement.x}%`,
+    top: `${placement.y}%`,
+    width: `${placement.width}%`,
+    height: `${placement.height}%`,
+    zIndex: placement.zIndex,
+    '--scene-rotation': `${placement.rotation || 0}deg`,
+  } as React.CSSProperties)
 
   const commitShopState = React.useCallback((nextShop: CharacterShopState): boolean => {
     const currentSession = readTodoSession()
@@ -261,47 +284,51 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
           className={`${styles.roomStage} ${isRoomFullscreen ? styles.roomStageFullscreen : ''}`}
           aria-label="着せ替えルーム"
         >
-          <Image
-            className={styles.roomBackground}
-            src="/assets/me-room/watercolor-room.png"
-            alt=""
-            fill
-            sizes="(max-width: 600px) 100vw, 50vw"
-            priority
-          />
-          {visibleItem.image && (
+          <div className={styles.sceneCanvas}>
             <Image
-              className={`${styles.roomItem} ${styles[activeItem]}`}
-              src={visibleItem.image}
-              alt={visibleItem.label}
-              width={320}
-              height={256}
+              className={styles.roomBackground}
+              src={ME_ROOM_SCENE.background}
+              alt=""
+              fill
+              sizes="(max-width: 600px) 100vw, 80vw"
+              priority
             />
-          )}
-          {isSpeechVisible && (
+            {visibleItem.image && visibleItem.scene && (
+              <Image
+                className={styles.roomItem}
+                style={scenePlacementStyle(visibleItem.scene)}
+                src={visibleItem.image}
+                alt={visibleItem.label}
+                width={320}
+                height={256}
+              />
+            )}
+            {isSpeechVisible && (
+              <button
+                type="button"
+                className={styles.speechBubble}
+                onClick={() => setIsSpeechVisible(false)}
+                aria-label="セリフを閉じる"
+              >
+                {sampleLines[speechIndex]}
+              </button>
+            )}
             <button
               type="button"
-              className={styles.speechBubble}
-              onClick={() => setIsSpeechVisible(false)}
-              aria-label="セリフを閉じる"
+              className={styles.characterButton}
+              style={scenePlacementStyle(CHARACTER_SCENE_PLACEMENT)}
+              onClick={handleCharacterClick}
+              aria-label={`${character.name}のセリフを見る`}
             >
-              {sampleLines[speechIndex]}
+              <Image
+                className={styles.miniCharacter}
+                src={selectedOutfit.image}
+                alt={character.name}
+                width={360}
+                height={440}
+              />
             </button>
-          )}
-          <button
-            type="button"
-            className={styles.characterButton}
-            onClick={handleCharacterClick}
-            aria-label={`${character.name}のセリフを見る`}
-          >
-            <Image
-              className={styles.miniCharacter}
-              src={selectedOutfit.image}
-              alt={character.name}
-              width={360}
-              height={440}
-            />
-          </button>
+          </div>
           {!isRoomUiHidden && (
             <div className={styles.namePlate}>
               <span>{character.name}</span>
