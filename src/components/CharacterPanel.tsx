@@ -3,6 +3,14 @@
 import Image from 'next/image'
 import React, { useState } from 'react'
 import styles from './CharacterPanel.module.css'
+import {
+  CharacterShopState,
+  TODO_SESSION_STORAGE_KEY,
+  TodoSession,
+  getTodoTimestamp,
+  normalizeTodoSession,
+} from '@/utils/todoSession'
+import { persistTodoSession } from '@/utils/todoSupabaseSync'
 
 type OutfitId = 'whiteSkirt' | 'uniform'
 type RoomItemId = 'none' | 'laptop'
@@ -17,7 +25,6 @@ interface Character {
 
 interface CharacterPanelProps {
   availablePoints: number
-  onSpendPoints: (points: number) => void
 }
 
 const outfitOptions: { id: OutfitId; label: string; description: string; image: string; price: number }[] = [
@@ -49,7 +56,19 @@ const roomItems: { id: RoomItemId; label: string; description: string; image?: s
 ]
 
 const CHARACTER_SHOP_STORAGE_KEY = 'myscore.character.shop.v1'
+const LEGACY_CHARACTER_SPENT_STORAGE_KEY = 'myscore.character.purchase.spent.v1'
 const initialOwnedItems: ShopItemId[] = ['whiteSkirt', 'none']
+
+const readTodoSession = (): TodoSession => {
+  if (typeof window === 'undefined') return normalizeTodoSession(null)
+
+  try {
+    const raw = window.localStorage.getItem(TODO_SESSION_STORAGE_KEY)
+    return normalizeTodoSession(raw ? JSON.parse(raw) : null)
+  } catch {
+    return normalizeTodoSession(null)
+  }
+}
 
 const sampleLines = [
   '今日も少しずつ進めよう',
@@ -57,7 +76,7 @@ const sampleLines = [
   '次はどんな家具にする？',
 ]
 
-const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints, onSpendPoints }) => {
+const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
   const [character, setCharacter] = useState<Character>({
     name: 'MyCharacter',
     level: 1,
@@ -72,38 +91,70 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints, onSpen
   const [shopTab, setShopTab] = useState<ShopTab>('outfit')
   const [isRoomFullscreen, setIsRoomFullscreen] = useState(false)
   const [isRoomUiHidden, setIsRoomUiHidden] = useState(false)
-  const [isShopHydrated, setIsShopHydrated] = useState(false)
 
   const selectedOutfit = outfitOptions.find(option => option.id === character.outfit) || outfitOptions[0]
   const visibleItem = roomItems.find(item => item.id === activeItem) || roomItems[0]
 
+  const commitShopState = React.useCallback((nextShop: CharacterShopState): boolean => {
+    const currentSession = readTodoSession()
+    const nextSession = normalizeTodoSession({
+      ...currentSession,
+      characterShop: nextShop,
+    })
+    const updatedAt = getTodoTimestamp()
+
+    try {
+      void persistTodoSession(nextSession, updatedAt).catch(() => undefined)
+    } catch {
+      setNotice('ショップ状態の保存に失敗した')
+      return false
+    }
+
+    const savedShop = nextSession.characterShop
+    setCharacter(prev => ({ ...prev, outfit: savedShop.outfit as OutfitId }))
+    setActiveItem(savedShop.activeItem as RoomItemId)
+    setOwnedItems(savedShop.ownedItems as ShopItemId[])
+    window.dispatchEvent(
+      new CustomEvent('todo-session-external-update', { detail: nextSession })
+    )
+    return true
+  }, [])
+
+  const selectShopItem = (
+    id: ShopItemId,
+    price: number,
+    label: string,
+    selection: Partial<Pick<CharacterShopState, 'outfit' | 'activeItem'>>
+  ) => {
+    const currentShop = readTodoSession().characterShop
+    const isOwned = currentShop.ownedItems.includes(id)
+
+    if (!isOwned && availablePoints < price) {
+      setNotice(`${label}の交換にはあと${price - availablePoints}pt必要です`)
+      return
+    }
+
+    const nextShop: CharacterShopState = {
+      ...currentShop,
+      ...selection,
+      spentPoints: currentShop.spentPoints + (isOwned ? 0 : price),
+      ownedItems: isOwned ? currentShop.ownedItems : [...currentShop.ownedItems, id],
+    }
+
+    if (!commitShopState(nextShop)) return
+    setNotice(isOwned ? `${label}を表示しました` : `${label}を${price}ptで交換しました`)
+  }
+
   const handleChangeOutfit = (outfit: OutfitId) => {
     const option = outfitOptions.find(item => item.id === outfit)
-    if (!option || !purchaseItem(option.id, option.price, option.label)) return
-    setCharacter(prev => ({ ...prev, outfit }))
+    if (!option) return
+    selectShopItem(option.id, option.price, option.label, { outfit })
   }
 
   const handleChangeRoomItem = (itemId: RoomItemId) => {
     const item = roomItems.find(option => option.id === itemId)
-    if (!item || !purchaseItem(item.id, item.price, item.label)) return
-    setActiveItem(itemId)
-  }
-
-  const purchaseItem = (id: ShopItemId, price: number, label: string) => {
-    if (ownedItems.includes(id)) {
-      setNotice(`${label}を表示しました`)
-      return true
-    }
-
-    if (availablePoints < price) {
-      setNotice(`${label}の交換にはあと${price - availablePoints}pt必要です`)
-      return false
-    }
-
-    setOwnedItems(prev => [...prev, id])
-    onSpendPoints(price)
-    setNotice(`${label}を${price}ptで交換しました`)
-    return true
+    if (!item) return
+    selectShopItem(item.id, item.price, item.label, { activeItem: itemId })
   }
 
   const handleCharacterClick = () => {
@@ -133,45 +184,67 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints, onSpen
   }, [isRoomFullscreen])
 
   React.useEffect(() => {
+    const sessionShop = readTodoSession().characterShop
     const saved = window.localStorage.getItem(CHARACTER_SHOP_STORAGE_KEY)
-    if (!saved) {
-      setIsShopHydrated(true)
-      return
+    const legacySpent = Number(
+      window.localStorage.getItem(LEGACY_CHARACTER_SPENT_STORAGE_KEY) || '0'
+    )
+    let migratedShop = sessionShop
+    let hasLegacyData = Number.isFinite(legacySpent) && legacySpent > 0
+
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as {
+          outfit?: OutfitId
+          activeItem?: RoomItemId
+          ownedItems?: ShopItemId[]
+        }
+
+        migratedShop = {
+          spentPoints: sessionShop.spentPoints || (hasLegacyData ? legacySpent : 0),
+          outfit:
+            parsed.outfit && outfitOptions.some(option => option.id === parsed.outfit)
+              ? parsed.outfit
+              : sessionShop.outfit,
+          activeItem:
+            parsed.activeItem && roomItems.some(item => item.id === parsed.activeItem)
+              ? parsed.activeItem
+              : sessionShop.activeItem,
+          ownedItems: Array.from(
+            new Set([
+              ...sessionShop.ownedItems,
+              ...(Array.isArray(parsed.ownedItems) ? parsed.ownedItems : []),
+            ])
+          ),
+        }
+        hasLegacyData = true
+      } catch {
+        setNotice('旧ショップデータを読み込めなかった')
+      }
     }
 
-    try {
-      const parsed = JSON.parse(saved) as {
-        outfit?: OutfitId
-        activeItem?: RoomItemId
-        ownedItems?: ShopItemId[]
-      }
-
-      if (parsed.outfit && outfitOptions.some(option => option.id === parsed.outfit)) {
-        setCharacter(prev => ({ ...prev, outfit: parsed.outfit as OutfitId }))
-      }
-      if (parsed.activeItem && roomItems.some(item => item.id === parsed.activeItem)) {
-        setActiveItem(parsed.activeItem)
-      }
-      if (Array.isArray(parsed.ownedItems)) {
-        setOwnedItems(Array.from(new Set([...initialOwnedItems, ...parsed.ownedItems])))
-      }
-    } catch {
-      window.localStorage.removeItem(CHARACTER_SHOP_STORAGE_KEY)
-    }
-    setIsShopHydrated(true)
-  }, [])
+    setCharacter(prev => ({ ...prev, outfit: migratedShop.outfit as OutfitId }))
+    setActiveItem(migratedShop.activeItem as RoomItemId)
+    setOwnedItems(migratedShop.ownedItems as ShopItemId[])
+    if (hasLegacyData) commitShopState(migratedShop)
+  }, [commitShopState])
 
   React.useEffect(() => {
-    if (!isShopHydrated) return
-    window.localStorage.setItem(
-      CHARACTER_SHOP_STORAGE_KEY,
-      JSON.stringify({
-        outfit: character.outfit,
-        activeItem,
-        ownedItems,
-      })
-    )
-  }, [character.outfit, activeItem, ownedItems, isShopHydrated])
+    const handleSessionUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<Partial<TodoSession>>
+      const shop = normalizeTodoSession(customEvent.detail).characterShop
+      setCharacter(prev => ({ ...prev, outfit: shop.outfit as OutfitId }))
+      setActiveItem(shop.activeItem as RoomItemId)
+      setOwnedItems(shop.ownedItems as ShopItemId[])
+    }
+
+    window.addEventListener('todo-session-updated', handleSessionUpdate)
+    window.addEventListener('todo-session-external-update', handleSessionUpdate)
+    return () => {
+      window.removeEventListener('todo-session-updated', handleSessionUpdate)
+      window.removeEventListener('todo-session-external-update', handleSessionUpdate)
+    }
+  }, [])
 
   return (
     <div className={styles.panel}>

@@ -11,6 +11,24 @@ import CalendarPanel from '@/components/CalendarPanel'
 import NotebookPanel from '@/components/NotebookPanel'
 import CharacterPanel from '@/components/CharacterPanel'
 import { saveLayoutState, loadLayoutState } from '@/utils/layoutStorage'
+import {
+  TODO_SESSION_STORAGE_KEY,
+  TodoSession,
+  getNotebookPoints,
+  getStudyPoints,
+  normalizeTodoSession,
+} from '@/utils/todoSession'
+import {
+  clearTodoSessionPendingSync,
+  getLocalTodoSessionUpdatedAt,
+  hasTodoSessionPendingSync,
+  isRemoteTodoSessionNewer,
+  isTodoSupabaseSyncConfigured,
+  loadRemoteTodoSession,
+  markTodoSessionPendingSync,
+  saveLocalTodoSession,
+  saveRemoteTodoSession,
+} from '@/utils/todoSupabaseSync'
 
 type PanelType = 'todo' | 'study' | 'calendar' | 'notebook' | 'character'
 
@@ -23,7 +41,16 @@ export interface PanelPosition {
 
 type LayoutMode = 'normal' | 'fullscreen'
 
-const CHARACTER_PURCHASE_SPENT_STORAGE_KEY = 'myscore.character.purchase.spent.v1'
+const readTodoSession = (): TodoSession => {
+  if (typeof window === 'undefined') return normalizeTodoSession(null)
+
+  try {
+    const raw = window.localStorage.getItem(TODO_SESSION_STORAGE_KEY)
+    return normalizeTodoSession(raw ? JSON.parse(raw) : null)
+  } catch {
+    return normalizeTodoSession(null)
+  }
+}
 
 // デスクトップ用デフォルトレイアウト (1024px以上)
 // NotebookPanel（自由メモ）を中央に大型配置、周りに他のパネル配置
@@ -219,17 +246,80 @@ export default function Home() {
     }
 
     initializeLayout()
-    const savedCharacterSpentPoints = Number(window.localStorage.getItem(CHARACTER_PURCHASE_SPENT_STORAGE_KEY) || '0')
-    if (Number.isFinite(savedCharacterSpentPoints) && savedCharacterSpentPoints > 0) {
-      setCharacterSpentPoints(savedCharacterSpentPoints)
-    }
     setIsHydrated(true)
   }, [])
 
   useEffect(() => {
-    if (!isHydrated) return
-    window.localStorage.setItem(CHARACTER_PURCHASE_SPENT_STORAGE_KEY, String(characterSpentPoints))
-  }, [characterSpentPoints, isHydrated])
+    const applySessionPoints = (session: TodoSession) => {
+      setTodoPoints(session.earnedPoints)
+      setStudyPoints(getStudyPoints(session.studyBooks))
+      setNotebookPoints(getNotebookPoints(session.notebookMemos))
+      setCharacterSpentPoints(session.characterShop.spentPoints)
+    }
+
+    const syncFromStorage = () => applySessionPoints(readTodoSession())
+    const handleSessionUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<Partial<TodoSession>>
+      applySessionPoints(normalizeTodoSession(customEvent.detail))
+    }
+
+    syncFromStorage()
+    window.addEventListener('storage', syncFromStorage)
+    window.addEventListener('todo-session-updated', handleSessionUpdate)
+    window.addEventListener('todo-session-external-update', handleSessionUpdate)
+    return () => {
+      window.removeEventListener('storage', syncFromStorage)
+      window.removeEventListener('todo-session-updated', handleSessionUpdate)
+      window.removeEventListener('todo-session-external-update', handleSessionUpdate)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isTodoSupabaseSyncConfigured()) return
+
+    let isActive = true
+    const syncSession = async () => {
+      const localSession = readTodoSession()
+      const localUpdatedAt = getLocalTodoSessionUpdatedAt()
+
+      try {
+        const remoteSession = await loadRemoteTodoSession()
+        if (!isActive) return
+
+        if (
+          remoteSession &&
+          !hasTodoSessionPendingSync() &&
+          isRemoteTodoSessionNewer(remoteSession.updatedAt, localUpdatedAt)
+        ) {
+          saveLocalTodoSession(remoteSession.session, remoteSession.updatedAt)
+          window.dispatchEvent(
+            new CustomEvent('todo-session-external-update', {
+              detail: remoteSession.session,
+            })
+          )
+          return
+        }
+
+        const localIsNewer = Boolean(
+          remoteSession &&
+          localUpdatedAt &&
+          isRemoteTodoSessionNewer(localUpdatedAt, remoteSession.updatedAt)
+        )
+        if (!remoteSession || hasTodoSessionPendingSync() || localIsNewer) {
+          const updatedAt = localUpdatedAt || new Date().toISOString()
+          await saveRemoteTodoSession(localSession, updatedAt)
+          if (isActive) clearTodoSessionPendingSync()
+        }
+      } catch {
+        markTodoSessionPendingSync()
+      }
+    }
+
+    void syncSession()
+    return () => {
+      isActive = false
+    }
+  }, [])
 
   // レイアウト状態が変更されたときに保存
   useEffect(() => {
@@ -401,7 +491,6 @@ export default function Home() {
           >
             <CharacterPanel
               availablePoints={totalPoints}
-              onSpendPoints={(points) => setCharacterSpentPoints(prev => prev + points)}
             />
           </DraggablePanelWrapper>
         )}

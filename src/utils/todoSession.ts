@@ -42,12 +42,42 @@ export interface TodoItem {
   data: SingleTask | Project
 }
 
+export type StudyCategory = 'manga' | 'bunko' | 'magazine' | 'textbook' | 'paper'
+
+export interface StudyBookRecord {
+  id: string
+  title: string
+  category: StudyCategory
+  pageCount: number
+  createdAt: string
+  points: number
+}
+
+export interface NotebookMemoRecord {
+  id: string
+  title: string
+  content: string
+  color: string
+  createdAt: string
+  points: number
+}
+
+export interface CharacterShopState {
+  spentPoints: number
+  outfit: string
+  activeItem: string
+  ownedItems: string[]
+}
+
 export interface TodoSession {
   todos: TodoItem[]
   earnedPoints: number
   archivedPointHistory: TodoPointHistoryItem[]
   pendingPointHistory: TodoPointHistoryItem[]
   hiddenPointHistoryIds: string[]
+  studyBooks: StudyBookRecord[]
+  notebookMemos: NotebookMemoRecord[]
+  characterShop: CharacterShopState
 }
 
 export interface TodoDailyStats {
@@ -81,6 +111,15 @@ export const TODO_DIFFICULTY_POINTS: Record<Difficulty, number> = {
 export const TODO_STEP_POINTS = 8
 export const TODO_MILESTONE_POINTS = 10
 export const TODO_PROJECT_POINTS = 50
+export const STUDY_POINTS_PER_PAGE = 3
+export const NOTEBOOK_CHARACTERS_PER_POINT = 10
+
+export const DEFAULT_CHARACTER_SHOP_STATE: CharacterShopState = {
+  spentPoints: 0,
+  outfit: 'whiteSkirt',
+  activeItem: 'none',
+  ownedItems: ['whiteSkirt', 'none'],
+}
 
 export const createDefaultTodos = (createdAt = getTodoTimestamp()): TodoItem[] => [
   {
@@ -123,6 +162,9 @@ export const createDemoTodoSession = (): TodoSession => {
     archivedPointHistory: [],
     pendingPointHistory: [],
     hiddenPointHistoryIds: [],
+    studyBooks: [],
+    notebookMemos: [],
+    characterShop: DEFAULT_CHARACTER_SHOP_STATE,
     todos: [
       {
         type: 'single',
@@ -372,6 +414,95 @@ const normalizeHistoryIds = (value: string[] | undefined): string[] =>
     ? Array.from(new Set(value.filter(item => typeof item === 'string' && item.length > 0)))
     : []
 
+const isStudyCategory = (value: unknown): value is StudyCategory =>
+  value === 'manga' ||
+  value === 'bunko' ||
+  value === 'magazine' ||
+  value === 'textbook' ||
+  value === 'paper'
+
+const normalizeStudyBooks = (
+  value: Partial<StudyBookRecord>[] | undefined,
+  fallbackDate: string
+): StudyBookRecord[] => {
+  if (!Array.isArray(value)) return []
+
+  return value.reduce<StudyBookRecord[]>((books, book) => {
+    if (
+      typeof book.id !== 'string' ||
+      typeof book.title !== 'string' ||
+      !isStudyCategory(book.category) ||
+      typeof book.pageCount !== 'number' ||
+      !Number.isFinite(book.pageCount) ||
+      book.pageCount <= 0
+    ) {
+      return books
+    }
+
+    const pageCount = Math.floor(book.pageCount)
+    books.push({
+      id: book.id,
+      title: book.title,
+      category: book.category,
+      pageCount,
+      createdAt: normalizeDate(book.createdAt, fallbackDate),
+      points: pageCount * STUDY_POINTS_PER_PAGE,
+    })
+    return books
+  }, [])
+}
+
+const normalizeNotebookMemos = (
+  value: Partial<NotebookMemoRecord>[] | undefined,
+  fallbackDate: string
+): NotebookMemoRecord[] => {
+  if (!Array.isArray(value)) return []
+
+  return value.reduce<NotebookMemoRecord[]>((memos, memo) => {
+    if (
+      typeof memo.id !== 'string' ||
+      typeof memo.title !== 'string' ||
+      typeof memo.content !== 'string'
+    ) {
+      return memos
+    }
+
+    memos.push({
+      id: memo.id,
+      title: memo.title,
+      content: memo.content,
+      color: typeof memo.color === 'string' ? memo.color : '#FFB6C1',
+      createdAt: normalizeDate(memo.createdAt, fallbackDate),
+      points: Math.floor(memo.content.length / NOTEBOOK_CHARACTERS_PER_POINT),
+    })
+    return memos
+  }, [])
+}
+
+const normalizeCharacterShop = (
+  value: Partial<CharacterShopState> | undefined
+): CharacterShopState => ({
+  spentPoints:
+    typeof value?.spentPoints === 'number' &&
+    Number.isFinite(value.spentPoints) &&
+    value.spentPoints >= 0
+      ? value.spentPoints
+      : 0,
+  outfit: typeof value?.outfit === 'string' ? value.outfit : DEFAULT_CHARACTER_SHOP_STATE.outfit,
+  activeItem:
+    typeof value?.activeItem === 'string'
+      ? value.activeItem
+      : DEFAULT_CHARACTER_SHOP_STATE.activeItem,
+  ownedItems: Array.from(
+    new Set([
+      ...DEFAULT_CHARACTER_SHOP_STATE.ownedItems,
+      ...(Array.isArray(value?.ownedItems)
+        ? value.ownedItems.filter(item => typeof item === 'string')
+        : []),
+    ])
+  ),
+})
+
 export const normalizeTodoSession = (
   value: Partial<TodoSession> | null | undefined,
   fallbackDate = getTodoTimestamp()
@@ -381,7 +512,22 @@ export const normalizeTodoSession = (
   archivedPointHistory: normalizePointHistory(value?.archivedPointHistory, fallbackDate),
   pendingPointHistory: normalizePointHistory(value?.pendingPointHistory, fallbackDate),
   hiddenPointHistoryIds: normalizeHistoryIds(value?.hiddenPointHistoryIds),
+  studyBooks: normalizeStudyBooks(value?.studyBooks, fallbackDate),
+  notebookMemos: normalizeNotebookMemos(value?.notebookMemos, fallbackDate),
+  characterShop: normalizeCharacterShop(value?.characterShop),
 })
+
+export const getStudyPoints = (books: StudyBookRecord[]): number =>
+  books.reduce((total, book) => total + book.points, 0)
+
+export const getNotebookPoints = (memos: NotebookMemoRecord[]): number =>
+  memos.reduce((total, memo) => total + memo.points, 0)
+
+export const getAvailablePoints = (session: TodoSession): number =>
+  session.earnedPoints +
+  getStudyPoints(session.studyBooks) +
+  getNotebookPoints(session.notebookMemos) -
+  session.characterShop.spentPoints
 
 export const getTodoStepPoints = (step: Step): number =>
   normalizeNonNegativePoints(step.rewardPoints) ?? TODO_STEP_POINTS

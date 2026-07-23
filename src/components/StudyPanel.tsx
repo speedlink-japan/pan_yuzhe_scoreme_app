@@ -2,14 +2,27 @@
 
 import React, { useState } from 'react'
 import styles from './StudyPanel.module.css'
+import {
+  STUDY_POINTS_PER_PAGE,
+  StudyBookRecord,
+  StudyCategory,
+  TODO_SESSION_STORAGE_KEY,
+  TodoSession,
+  getStudyPoints,
+  getTodoTimestamp,
+  normalizeTodoSession,
+} from '@/utils/todoSession'
+import { persistTodoSession } from '@/utils/todoSupabaseSync'
 
-interface Book {
-  id: string
-  title: string
-  category: 'manga' | 'bunko' | 'magazine' | 'textbook' | 'paper'
-  pageCount: number
-  createdAt: Date
-  points: number
+const readTodoSession = (): TodoSession => {
+  if (typeof window === 'undefined') return normalizeTodoSession(null)
+
+  try {
+    const raw = window.localStorage.getItem(TODO_SESSION_STORAGE_KEY)
+    return normalizeTodoSession(raw ? JSON.parse(raw) : null)
+  } catch {
+    return normalizeTodoSession(null)
+  }
 }
 
 interface StudyPanelProps {
@@ -17,20 +30,11 @@ interface StudyPanelProps {
 }
 
 const StudyPanel: React.FC<StudyPanelProps> = ({ onPointsChange }) => {
-  const [books, setBooks] = useState<Book[]>([
-    {
-      id: '1',
-      title: 'Sample Book',
-      category: 'bunko',
-      pageCount: 50,
-      createdAt: new Date(),
-      points: 150,
-    },
-  ])
+  const [books, setBooks] = useState<StudyBookRecord[]>(() => readTodoSession().studyBooks)
   const [activeTab, setActiveTab] = useState<'view' | 'add'>('view')
   const [newBook, setNewBook] = useState<{
     title: string
-    category: 'manga' | 'bunko' | 'magazine' | 'textbook' | 'paper'
+    category: StudyCategory
     pageCount: number
   }>({
     title: '',
@@ -38,33 +42,49 @@ const StudyPanel: React.FC<StudyPanelProps> = ({ onPointsChange }) => {
     pageCount: 1,
   })
 
-  const calculatePoints = (category: string, pageCount: number) => {
-    const categories: Record<string, number> = {
-      manga: 3,
-      bunko: 3,
-      magazine: 3,
-      textbook: 3,
-      paper: 3,
+  const calculatePoints = (pageCount: number) => {
+    return pageCount * STUDY_POINTS_PER_PAGE
+  }
+
+  const commitBooks = (nextBooks: StudyBookRecord[]): boolean => {
+    const currentSession = readTodoSession()
+    const nextSession = normalizeTodoSession({
+      ...currentSession,
+      studyBooks: nextBooks,
+    })
+    const updatedAt = getTodoTimestamp()
+
+    try {
+      void persistTodoSession(nextSession, updatedAt).catch(() => undefined)
+    } catch {
+      window.alert('読書記録の保存に失敗した。')
+      return false
     }
-    const pointPerPage = categories[category] || 3
-    return pageCount * pointPerPage
+
+    setBooks(nextSession.studyBooks)
+    window.dispatchEvent(
+      new CustomEvent('todo-session-external-update', { detail: nextSession })
+    )
+    return true
   }
 
   const addBook = () => {
     if (newBook.title.trim() && newBook.pageCount > 0) {
-      const points = calculatePoints(newBook.category, newBook.pageCount)
+      const points = calculatePoints(newBook.pageCount)
 
-      setBooks([
+      const nextBooks = [
         ...books,
         {
           id: Date.now().toString(),
           title: newBook.title,
           category: newBook.category,
           pageCount: newBook.pageCount,
-          createdAt: new Date(),
+          createdAt: getTodoTimestamp(),
           points,
         },
-      ])
+      ]
+
+      if (!commitBooks(nextBooks)) return
 
       setNewBook({
         title: '',
@@ -76,14 +96,27 @@ const StudyPanel: React.FC<StudyPanelProps> = ({ onPointsChange }) => {
   }
 
   const calculateTotalPoints = () => {
-    return books.reduce((sum, book) => sum + book.points, 0)
+    return getStudyPoints(books)
   }
 
   // ポイント変更を親に通知
   React.useEffect(() => {
-    const totalPoints = books.reduce((sum, book) => sum + book.points, 0)
-    onPointsChange?.(totalPoints)
+    onPointsChange?.(getStudyPoints(books))
   }, [books, onPointsChange])
+
+  React.useEffect(() => {
+    const handleSessionUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<Partial<TodoSession>>
+      setBooks(normalizeTodoSession(customEvent.detail).studyBooks)
+    }
+
+    window.addEventListener('todo-session-updated', handleSessionUpdate)
+    window.addEventListener('todo-session-external-update', handleSessionUpdate)
+    return () => {
+      window.removeEventListener('todo-session-updated', handleSessionUpdate)
+      window.removeEventListener('todo-session-external-update', handleSessionUpdate)
+    }
+  }, [])
 
   const categoryLabels: Record<string, string> = {
     manga: '漫画',
@@ -147,7 +180,7 @@ const StudyPanel: React.FC<StudyPanelProps> = ({ onPointsChange }) => {
               <label>Category:</label>
               <select
                 value={newBook.category}
-                onChange={(e) => setNewBook({ ...newBook, category: e.target.value as 'manga' | 'bunko' | 'magazine' | 'textbook' | 'paper' })}
+                onChange={(e) => setNewBook({ ...newBook, category: e.target.value as StudyCategory })}
               >
                 <option value="manga">漫画</option>
                 <option value="bunko">文庫本</option>
@@ -168,7 +201,7 @@ const StudyPanel: React.FC<StudyPanelProps> = ({ onPointsChange }) => {
             </div>
 
             <div className={styles.pointsPreview}>
-              Points: +{calculatePoints(newBook.category, newBook.pageCount)}pt
+              Points: +{calculatePoints(newBook.pageCount)}pt
             </div>
 
             <button onClick={addBook} className={styles.submitBtn}>

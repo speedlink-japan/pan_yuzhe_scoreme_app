@@ -147,6 +147,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
 
   React.useEffect(() => {
     const todoSession = {
+      ...loadTodoSession(),
       todos,
       earnedPoints,
       archivedPointHistory,
@@ -868,6 +869,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
         .filter((todo): todo is TodoItem => todo !== null)
 
       const nextSession: TodoSession = {
+        ...loadTodoSession(),
         todos: activeTodos,
         earnedPoints: earnedPoints + pendingPoints,
         archivedPointHistory: nextArchivedPointHistory,

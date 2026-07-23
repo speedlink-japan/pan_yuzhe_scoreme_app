@@ -2,14 +2,26 @@
 
 import React, { useState } from 'react'
 import styles from './NotebookPanel.module.css'
+import {
+  NOTEBOOK_CHARACTERS_PER_POINT,
+  NotebookMemoRecord,
+  TODO_SESSION_STORAGE_KEY,
+  TodoSession,
+  getNotebookPoints,
+  getTodoTimestamp,
+  normalizeTodoSession,
+} from '@/utils/todoSession'
+import { persistTodoSession } from '@/utils/todoSupabaseSync'
 
-interface Memo {
-  id: string
-  title: string
-  content: string
-  color: string
-  createdAt: Date
-  points: number
+const readTodoSession = (): TodoSession => {
+  if (typeof window === 'undefined') return normalizeTodoSession(null)
+
+  try {
+    const raw = window.localStorage.getItem(TODO_SESSION_STORAGE_KEY)
+    return normalizeTodoSession(raw ? JSON.parse(raw) : null)
+  } catch {
+    return normalizeTodoSession(null)
+  }
 }
 
 interface NotebookPanelProps {
@@ -17,16 +29,9 @@ interface NotebookPanelProps {
 }
 
 const NotebookPanel: React.FC<NotebookPanelProps> = ({ onPointsChange }) => {
-  const [memos, setMemos] = useState<Memo[]>([
-    {
-      id: '1',
-      title: 'Sample Memo',
-      content: 'This is a sample memo for testing.',
-      color: '#FFB6C1',
-      createdAt: new Date(),
-      points: 50,
-    },
-  ])
+  const [memos, setMemos] = useState<NotebookMemoRecord[]>(
+    () => readTodoSession().notebookMemos
+  )
   const [activeTab, setActiveTab] = useState<'view' | 'add'>('view')
   const [newMemo, setNewMemo] = useState<{
     title: string
@@ -40,19 +45,38 @@ const NotebookPanel: React.FC<NotebookPanelProps> = ({ onPointsChange }) => {
 
   const addMemo = () => {
     if (newMemo.title.trim() && newMemo.content.trim()) {
-      const points = Math.floor(newMemo.content.length / 10)
+      const points = Math.floor(newMemo.content.length / NOTEBOOK_CHARACTERS_PER_POINT)
 
-      setMemos([
+      const nextMemos = [
         ...memos,
         {
           id: Date.now().toString(),
           title: newMemo.title,
           content: newMemo.content,
           color: newMemo.color,
-          createdAt: new Date(),
+          createdAt: getTodoTimestamp(),
           points,
         },
-      ])
+      ]
+
+      const currentSession = readTodoSession()
+      const nextSession = normalizeTodoSession({
+        ...currentSession,
+        notebookMemos: nextMemos,
+      })
+      const updatedAt = getTodoTimestamp()
+
+      try {
+        void persistTodoSession(nextSession, updatedAt).catch(() => undefined)
+      } catch {
+        window.alert('メモの保存に失敗した。')
+        return
+      }
+
+      setMemos(nextSession.notebookMemos)
+      window.dispatchEvent(
+        new CustomEvent('todo-session-external-update', { detail: nextSession })
+      )
 
       setNewMemo({
         title: '',
@@ -64,14 +88,27 @@ const NotebookPanel: React.FC<NotebookPanelProps> = ({ onPointsChange }) => {
   }
 
   const calculateTotalPoints = () => {
-    return memos.reduce((sum, memo) => sum + memo.points, 0)
+    return getNotebookPoints(memos)
   }
 
   // ポイント変更を親に通知
   React.useEffect(() => {
-    const totalPoints = memos.reduce((sum, memo) => sum + memo.points, 0)
-    onPointsChange?.(totalPoints)
+    onPointsChange?.(getNotebookPoints(memos))
   }, [memos, onPointsChange])
+
+  React.useEffect(() => {
+    const handleSessionUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<Partial<TodoSession>>
+      setMemos(normalizeTodoSession(customEvent.detail).notebookMemos)
+    }
+
+    window.addEventListener('todo-session-updated', handleSessionUpdate)
+    window.addEventListener('todo-session-external-update', handleSessionUpdate)
+    return () => {
+      window.removeEventListener('todo-session-updated', handleSessionUpdate)
+      window.removeEventListener('todo-session-external-update', handleSessionUpdate)
+    }
+  }, [])
 
   return (
     <div className={styles.panel}>
