@@ -43,6 +43,7 @@ export interface TodoSession {
   todos: TodoItem[]
   earnedPoints: number
   archivedPointHistory: TodoPointHistoryItem[]
+  pendingPointHistory: TodoPointHistoryItem[]
 }
 
 export interface TodoDailyStats {
@@ -50,7 +51,6 @@ export interface TodoDailyStats {
   completedSingleTasks: number
   incompleteSingleTasks: number
   completedProjectSteps: number
-  plannedPoints: number
 }
 
 export interface TodoPointHistoryItem {
@@ -59,6 +59,9 @@ export interface TodoPointHistoryItem {
   type: 'single' | 'project-step' | 'milestone' | 'project'
   points: number
   completedAt: string
+  sourceTodo?: TodoItem
+  sourceMilestoneId?: string
+  sourceStepId?: string
 }
 
 export const TODO_SESSION_STORAGE_KEY = 'myscore.todo.session.v1'
@@ -114,6 +117,7 @@ export const createDemoTodoSession = (): TodoSession => {
   return {
     earnedPoints: 71,
     archivedPointHistory: [],
+    pendingPointHistory: [],
     todos: [
       {
         type: 'single',
@@ -328,6 +332,12 @@ const normalizePointHistoryItem = (
     type: value.type,
     points: value.points,
     completedAt: normalizeDate(value.completedAt, fallbackDate),
+    sourceTodo: value.sourceTodo
+      ? normalizeTodoItems([value.sourceTodo], fallbackDate)[0]
+      : undefined,
+    sourceMilestoneId:
+      typeof value.sourceMilestoneId === 'string' ? value.sourceMilestoneId : undefined,
+    sourceStepId: typeof value.sourceStepId === 'string' ? value.sourceStepId : undefined,
   }
 }
 
@@ -349,6 +359,7 @@ export const normalizeTodoSession = (
   todos: normalizeTodoItems(value?.todos, fallbackDate),
   earnedPoints: typeof value?.earnedPoints === 'number' ? value.earnedPoints : 0,
   archivedPointHistory: normalizePointHistory(value?.archivedPointHistory, fallbackDate),
+  pendingPointHistory: normalizePointHistory(value?.pendingPointHistory, fallbackDate),
 })
 
 export const getTodoDateKey = (dateValue: string): string => {
@@ -366,7 +377,6 @@ const createEmptyDailyStats = (date: string): TodoDailyStats => ({
   completedSingleTasks: 0,
   incompleteSingleTasks: 0,
   completedProjectSteps: 0,
-  plannedPoints: 0,
 })
 
 const ensureDailyStats = (
@@ -393,7 +403,6 @@ export const getTodoDailyStats = (
       } else if (!task.completed) {
         const stats = ensureDailyStats(statsByDate, getTodoDateKey(task.createdAt))
         stats.incompleteSingleTasks += 1
-        stats.plannedPoints += TODO_DIFFICULTY_POINTS[task.difficulty]
       }
 
       return statsByDate
@@ -405,7 +414,7 @@ export const getTodoDailyStats = (
         if (step.completed && step.completedAt) {
           ensureDailyStats(statsByDate, getTodoDateKey(step.completedAt)).completedProjectSteps += 1
         } else if (!step.completed) {
-          ensureDailyStats(statsByDate, getTodoDateKey(step.createdAt)).plannedPoints += TODO_STEP_POINTS
+          ensureDailyStats(statsByDate, getTodoDateKey(step.createdAt))
         }
       })
     })
@@ -445,9 +454,12 @@ const getLatestCompletedAt = (completedDates: string[]): string | undefined => {
 export const getTodoPointHistoryForDate = (
   todos: TodoItem[],
   date: string,
-  archivedPointHistory: TodoPointHistoryItem[] = []
+  archivedPointHistory: TodoPointHistoryItem[] = [],
+  pendingPointHistory: TodoPointHistoryItem[] = []
 ): TodoPointHistoryItem[] => {
-  const history = getTodoPointHistory(todos).filter(item => getTodoDateKey(item.completedAt) === date)
+  const history = getTodoPointHistory(todos, pendingPointHistory).filter(
+    item => getTodoDateKey(item.completedAt) === date
+  )
   const archivedHistory = archivedPointHistory.filter(
     item => getTodoDateKey(item.completedAt) === date
   )
@@ -459,18 +471,25 @@ export const getTodoPointHistoryForDate = (
   })
 }
 
-export const getTodoPointHistory = (todos: TodoItem[]): TodoPointHistoryItem[] => {
+export const getTodoPointHistory = (
+  todos: TodoItem[],
+  pendingPointHistory: TodoPointHistoryItem[] = []
+): TodoPointHistoryItem[] => {
+  const pendingIds = new Set(pendingPointHistory.map(item => item.id))
+
   return todos.reduce<TodoPointHistoryItem[]>((items, todo) => {
     if (todo.type === 'single') {
       const task = todo.data as SingleTask
 
-      if (task.completedAt) {
+      const historyId = `single-${task.id}`
+      if (task.completedAt && !pendingIds.has(historyId)) {
         items.push({
-          id: `single-${task.id}`,
+          id: historyId,
           title: task.text,
           type: 'single',
           points: TODO_DIFFICULTY_POINTS[task.difficulty],
           completedAt: task.completedAt,
+          sourceTodo: todo,
         })
       }
 
@@ -481,13 +500,17 @@ export const getTodoPointHistory = (todos: TodoItem[]): TodoPointHistoryItem[] =
 
     project.milestones.forEach(milestone => {
       milestone.steps.forEach(step => {
-        if (step.completedAt) {
+        const historyId = `step-${project.id}-${milestone.id}-${step.id}`
+        if (step.completedAt && !pendingIds.has(historyId)) {
           items.push({
-            id: `step-${project.id}-${milestone.id}-${step.id}`,
+            id: historyId,
             title: `${project.name} / ${step.text}`,
             type: 'project-step',
             points: TODO_STEP_POINTS,
             completedAt: step.completedAt,
+            sourceTodo: todo,
+            sourceMilestoneId: milestone.id,
+            sourceStepId: step.id,
           })
         }
       })
@@ -502,30 +525,38 @@ export const getTodoPointHistory = (todos: TodoItem[]): TodoPointHistoryItem[] =
             )
           : undefined)
 
-      if (milestoneCompletedAt) {
+      const milestoneHistoryId = `milestone-${project.id}-${milestone.id}`
+      if (milestoneCompletedAt && !pendingIds.has(milestoneHistoryId)) {
         items.push({
-          id: `milestone-${project.id}-${milestone.id}`,
+          id: milestoneHistoryId,
           title: `${project.name} / ${milestone.name}`,
           type: 'milestone',
           points: TODO_MILESTONE_POINTS,
           completedAt: milestoneCompletedAt,
+          sourceTodo: todo,
+          sourceMilestoneId: milestone.id,
         })
       }
     })
 
-    if (project.completedAt) {
+    const projectHistoryId = `project-${project.id}`
+    if (project.completedAt && !pendingIds.has(projectHistoryId)) {
       items.push({
-        id: `project-${project.id}`,
+        id: projectHistoryId,
         title: project.name,
         type: 'project',
         points: TODO_PROJECT_POINTS,
         completedAt: project.completedAt,
+        sourceTodo: todo,
       })
     }
 
     return items
   }, [])
 }
+
+export const getTodoPendingPoints = (pendingPointHistory: TodoPointHistoryItem[]): number =>
+  pendingPointHistory.reduce((total, item) => total + item.points, 0)
 
 export const mergeTodoPointHistory = (
   currentHistory: TodoPointHistoryItem[],

@@ -5,15 +5,19 @@ import styles from './CalendarPanel.module.css'
 import {
   TODO_SESSION_STORAGE_KEY,
   TodoDailyStats,
+  TodoItem,
   TodoPointHistoryItem,
   TodoSession,
+  Project,
   getTodoDailyStats,
   getTodoDateKey,
   getTodoPointHistory,
   getTodoPointHistoryForDate,
+  getTodoTimestamp,
   mergeTodoPointHistory,
   normalizeTodoSession,
 } from '@/utils/todoSession'
+import { saveLocalTodoSession } from '@/utils/todoSupabaseSync'
 
 type CalendarView = 'calendar' | 'detail' | 'summary'
 type SummaryMode = 'week' | 'month' | 'compare'
@@ -44,7 +48,6 @@ const emptyStats = (date: string): TodoDailyStats => ({
   completedSingleTasks: 0,
   incompleteSingleTasks: 0,
   completedProjectSteps: 0,
-  plannedPoints: 0,
 })
 
 const pointHistoryLabels: Record<TodoPointHistoryItem['type'], string> = {
@@ -104,6 +107,85 @@ const formatRangeLabel = (start: Date, end: Date): string => {
 const formatMonthLabel = (date: Date): string =>
   date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })
 
+const createCopyId = (prefix: string) =>
+  `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+
+const cloneHistoryTodo = (item: TodoPointHistoryItem): TodoItem | null => {
+  const sourceTodo = item.sourceTodo
+  const createdAt = getTodoTimestamp()
+
+  if (!sourceTodo) {
+    if (item.type !== 'single') return null
+
+    return {
+      type: 'single',
+      data: {
+        id: createCopyId('task-copy'),
+        text: item.title,
+        difficulty: 'medium',
+        completed: false,
+        createdAt,
+      },
+    }
+  }
+
+  if (sourceTodo.type === 'single') {
+    return {
+      type: 'single',
+      data: {
+        ...sourceTodo.data,
+        id: createCopyId('task-copy'),
+        completed: false,
+        createdAt,
+        completedAt: undefined,
+      },
+    }
+  }
+
+  const sourceProject = sourceTodo.data as Project
+  let sourceMilestones = sourceProject.milestones
+
+  if (item.type === 'project-step' && item.sourceMilestoneId && item.sourceStepId) {
+    sourceMilestones = sourceMilestones
+      .filter(milestone => milestone.id === item.sourceMilestoneId)
+      .map(milestone => ({
+        ...milestone,
+        steps: milestone.steps.filter(step => step.id === item.sourceStepId),
+      }))
+  } else if (item.type === 'milestone' && item.sourceMilestoneId) {
+    sourceMilestones = sourceMilestones.filter(
+      milestone => milestone.id === item.sourceMilestoneId
+    )
+  }
+
+  if (sourceMilestones.length === 0) return null
+
+  return {
+    type: 'project',
+    data: {
+      ...sourceProject,
+      id: createCopyId('project-copy'),
+      name: sourceProject.name,
+      completed: false,
+      createdAt,
+      completedAt: undefined,
+      milestones: sourceMilestones.map(milestone => ({
+        ...milestone,
+        id: createCopyId('milestone-copy'),
+        completed: false,
+        completedAt: undefined,
+        steps: milestone.steps.map(step => ({
+          ...step,
+          id: createCopyId('step-copy'),
+          completed: false,
+          createdAt,
+          completedAt: undefined,
+        })),
+      })),
+    },
+  }
+}
+
 const isDateInRange = (dateKey: string, start: Date, end: Date): boolean => {
   const date = new Date(`${dateKey}T00:00:00`)
   return date >= start && date <= end
@@ -123,14 +205,12 @@ const summarizeRange = (
         completedSingleTasks: summary.completedSingleTasks + item.completedSingleTasks,
         incompleteSingleTasks: summary.incompleteSingleTasks + item.incompleteSingleTasks,
         completedProjectSteps: summary.completedProjectSteps + item.completedProjectSteps,
-        plannedPoints: summary.plannedPoints + item.plannedPoints,
       }
     },
     {
       completedSingleTasks: 0,
       incompleteSingleTasks: 0,
       completedProjectSteps: 0,
-      plannedPoints: 0,
     }
   )
   const points = pointHistory
@@ -154,6 +234,8 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
   const [selectedDateKey, setSelectedDateKey] = React.useState<string | null>(null)
   const [view, setView] = React.useState<CalendarView>('calendar')
   const [summaryMode, setSummaryMode] = React.useState<SummaryMode>('week')
+  const [isSelectingHistory, setIsSelectingHistory] = React.useState(false)
+  const [selectedHistoryIds, setSelectedHistoryIds] = React.useState<string[]>([])
   const today = React.useMemo(() => new Date(), [])
   const currentMonth = today.getMonth()
   const currentYear = today.getFullYear()
@@ -183,9 +265,9 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
     () =>
       mergeTodoPointHistory(
         todoSession.archivedPointHistory,
-        getTodoPointHistory(todoSession.todos)
+        getTodoPointHistory(todoSession.todos, todoSession.pendingPointHistory)
       ),
-    [todoSession.archivedPointHistory, todoSession.todos]
+    [todoSession.archivedPointHistory, todoSession.pendingPointHistory, todoSession.todos]
   )
   const selectedStats = selectedDateKey
     ? todoStatsByDate[selectedDateKey] || emptyStats(selectedDateKey)
@@ -196,10 +278,16 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
         ? getTodoPointHistoryForDate(
             todoSession.todos,
             selectedDateKey,
-            todoSession.archivedPointHistory
+            todoSession.archivedPointHistory,
+            todoSession.pendingPointHistory
           )
         : [],
-    [selectedDateKey, todoSession.todos, todoSession.archivedPointHistory]
+    [
+      selectedDateKey,
+      todoSession.todos,
+      todoSession.archivedPointHistory,
+      todoSession.pendingPointHistory,
+    ]
   )
   const currentWeekStart = React.useMemo(() => startOfWeek(today), [today])
   const currentWeekEnd = React.useMemo(() => addDays(currentWeekStart, 6), [currentWeekStart])
@@ -251,10 +339,12 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
 
     window.addEventListener('storage', syncTodoSession)
     window.addEventListener('todo-session-updated', handleTodoSessionUpdated)
+    window.addEventListener('todo-session-external-update', handleTodoSessionUpdated)
 
     return () => {
       window.removeEventListener('storage', syncTodoSession)
       window.removeEventListener('todo-session-updated', handleTodoSessionUpdated)
+      window.removeEventListener('todo-session-external-update', handleTodoSessionUpdated)
     }
   }, [])
 
@@ -271,6 +361,83 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
   const openDetail = (dateKey: string) => {
     setSelectedDateKey(dateKey)
     setView('detail')
+    setIsSelectingHistory(false)
+    setSelectedHistoryIds([])
+  }
+
+  const persistTodoSession = (nextSession: TodoSession) => {
+    const updatedAt = getTodoTimestamp()
+    saveLocalTodoSession(nextSession, updatedAt)
+    setTodoSession(nextSession)
+    window.dispatchEvent(
+      new CustomEvent('todo-session-external-update', { detail: nextSession })
+    )
+  }
+
+  const copyHistoryItem = (item: TodoPointHistoryItem) => {
+    const copiedTodo = cloneHistoryTodo(item)
+    if (!copiedTodo) {
+      window.alert('この履歴はTODOへ戻せる情報がありません。')
+      return
+    }
+
+    persistTodoSession({
+      ...todoSession,
+      todos: [...todoSession.todos, copiedTodo],
+    })
+    window.alert('TODOにコピーした。')
+  }
+
+  const toggleHistorySelection = (historyId: string) => {
+    setSelectedHistoryIds(prev =>
+      prev.includes(historyId)
+        ? prev.filter(id => id !== historyId)
+        : [...prev, historyId]
+    )
+  }
+
+  const deleteSelectedHistory = () => {
+    if (selectedHistoryIds.length === 0) {
+      window.alert('削除する履歴を選択して。')
+      return
+    }
+
+    if (!window.confirm(`選択した${selectedHistoryIds.length}件の履歴を削除する？獲得ptは変わらない。`)) {
+      return
+    }
+
+    const selectedIds = new Set(selectedHistoryIds)
+    persistTodoSession({
+      ...todoSession,
+      archivedPointHistory: todoSession.archivedPointHistory.filter(
+        item => !selectedIds.has(item.id)
+      ),
+    })
+    setSelectedHistoryIds([])
+    setIsSelectingHistory(false)
+  }
+
+  const redoHistoryItem = (item: TodoPointHistoryItem) => {
+    const copiedTodo = cloneHistoryTodo(item)
+    if (!copiedTodo) {
+      window.alert('この履歴はTODOへ戻せる情報がありません。')
+      return
+    }
+
+    if (!window.confirm(`${item.title}をやり直す？${item.points}ptを合計から減算してTODOに戻す。`)) {
+      return
+    }
+
+    const selectedIds = new Set([item.id])
+    persistTodoSession({
+      ...todoSession,
+      todos: [...todoSession.todos, copiedTodo],
+      earnedPoints: todoSession.earnedPoints - item.points,
+      archivedPointHistory: todoSession.archivedPointHistory.filter(
+        historyItem => !selectedIds.has(historyItem.id)
+      ),
+    })
+    setSelectedHistoryIds(prev => prev.filter(id => id !== item.id))
   }
 
   return (
@@ -334,10 +501,6 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
                     <span className={styles.summaryValue}>{weeklySummary.completedTotal}</span>
                     <span className={styles.summaryLabel}>完了</span>
                   </div>
-                  <div className={`${styles.summaryItem} ${styles.summaryIncomplete}`}>
-                    <span className={styles.summaryValue}>{weeklySummary.plannedPoints}</span>
-                    <span className={styles.summaryLabel}>予定pt</span>
-                  </div>
                   <div className={`${styles.summaryItem} ${styles.summaryProject}`}>
                     <span className={styles.summaryValue}>{weeklySummary.completedProjectSteps}</span>
                     <span className={styles.summaryLabel}>長期タスク</span>
@@ -359,10 +522,6 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
                   <div className={`${styles.summaryItem} ${styles.summaryCompleted}`}>
                     <span className={styles.summaryValue}>{monthlySummary.completedTotal}</span>
                     <span className={styles.summaryLabel}>完了</span>
-                  </div>
-                  <div className={`${styles.summaryItem} ${styles.summaryIncomplete}`}>
-                    <span className={styles.summaryValue}>{monthlySummary.plannedPoints}</span>
-                    <span className={styles.summaryLabel}>予定pt</span>
                   </div>
                   <div className={`${styles.summaryItem} ${styles.summaryProject}`}>
                     <span className={styles.summaryValue}>{monthlySummary.completedProjectSteps}</span>
@@ -386,8 +545,6 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
                     <strong>{formatDiff(weeklySummary.completedTotal - previousWeeklySummary.completedTotal)}</strong>
                     <span>未完了</span>
                     <strong>{formatDiff(weeklySummary.incompleteSingleTasks - previousWeeklySummary.incompleteSingleTasks)}</strong>
-                    <span>予定pt</span>
-                    <strong>{formatDiff(weeklySummary.plannedPoints - previousWeeklySummary.plannedPoints)}pt</strong>
                   </div>
                 </div>
 
@@ -403,8 +560,6 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
                     <strong>{formatDiff(monthlySummary.completedTotal - previousMonthlySummary.completedTotal)}</strong>
                     <span>未完了</span>
                     <strong>{formatDiff(monthlySummary.incompleteSingleTasks - previousMonthlySummary.incompleteSingleTasks)}</strong>
-                    <span>予定pt</span>
-                    <strong>{formatDiff(monthlySummary.plannedPoints - previousMonthlySummary.plannedPoints)}pt</strong>
                   </div>
                 </div>
               </div>
@@ -434,25 +589,83 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
                 <span className={styles.summaryValue}>{selectedStats.completedProjectSteps}</span>
                 <span className={styles.summaryLabel}>長期タスク</span>
               </div>
-              <div className={`${styles.summaryItem} ${styles.summaryPlanned}`}>
-                <span className={styles.summaryValue}>{selectedStats.plannedPoints}</span>
-                <span className={styles.summaryLabel}>予定pt</span>
-              </div>
             </div>
 
             <div className={styles.historySection}>
-              <h3>ポイント獲得履歴</h3>
+              <div className={styles.historyToolbar}>
+                <h3>ポイント獲得履歴</h3>
+                <div className={styles.historyActions}>
+                  {isSelectingHistory ? (
+                    <>
+                      <button
+                        type="button"
+                        className={styles.historyActionButton}
+                        onClick={deleteSelectedHistory}
+                        disabled={selectedHistoryIds.length === 0}
+                      >
+                        選択削除 {selectedHistoryIds.length > 0 ? `(${selectedHistoryIds.length})` : ''}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.historyActionButton}
+                        onClick={() => {
+                          setIsSelectingHistory(false)
+                          setSelectedHistoryIds([])
+                        }}
+                      >
+                        キャンセル
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.historyActionButton}
+                      onClick={() => setIsSelectingHistory(true)}
+                    >
+                      履歴を選択
+                    </button>
+                  )}
+                </div>
+              </div>
               {pointHistory.length > 0 ? (
                 <div className={styles.historyList}>
                   {pointHistory.map(item => (
-                    <div key={item.id} className={styles.historyItem}>
+                    <div
+                      key={item.id}
+                      className={`${styles.historyItem} ${selectedHistoryIds.includes(item.id) ? styles.historyItemSelected : ''}`}
+                    >
+                      {isSelectingHistory && (
+                        <input
+                          type="checkbox"
+                          className={styles.historyCheckbox}
+                          checked={selectedHistoryIds.includes(item.id)}
+                          onChange={() => toggleHistorySelection(item.id)}
+                          aria-label={`${item.title}を削除対象に選択`}
+                        />
+                      )}
                       <div className={styles.historyMain}>
                         <span className={styles.historyTitle}>{item.title}</span>
                         <span className={styles.historyMeta}>
                           {pointHistoryLabels[item.type]} / {formatCompletedTime(item.completedAt)}
                         </span>
                       </div>
-                      <span className={styles.historyPoints}>+{item.points}pt</span>
+                      <div className={styles.historyItemActions}>
+                        <span className={styles.historyPoints}>+{item.points}pt</span>
+                        <button
+                          type="button"
+                          className={styles.historyItemButton}
+                          onClick={() => copyHistoryItem(item)}
+                        >
+                          コピー
+                        </button>
+                        <button
+                          type="button"
+                          className={`${styles.historyItemButton} ${styles.historyRedoButton}`}
+                          onClick={() => redoHistoryItem(item)}
+                        >
+                          やり直し
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -324,7 +324,7 @@ export default function Home() {
   }
 
   const earnedTotalPoints = todoPoints + studyPoints + notebookPoints
-  const totalPoints = Math.max(0, earnedTotalPoints - characterSpentPoints)
+  const totalPoints = earnedTotalPoints - characterSpentPoints
   const displayedPanelPositions = layoutMode === 'fullscreen' ? fullscreenPanelPositions : panelPositions
 
   return (

@@ -7,6 +7,7 @@ import {
   Project,
   SingleTask,
   TodoItem,
+  TodoSession,
   TODO_SESSION_STORAGE_KEY,
   TODO_DIFFICULTY_POINTS,
   TODO_MILESTONE_POINTS,
@@ -14,6 +15,7 @@ import {
   TODO_STEP_POINTS,
   createDemoTodoSession,
   getTodoPointHistory,
+  getTodoPendingPoints,
   getTodoTimestamp,
   mergeTodoPointHistory,
   normalizeTodoSession,
@@ -102,6 +104,9 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   const [archivedPointHistory, setArchivedPointHistory] = useState<TodoPointHistoryItem[]>(
     initialTodoSession.current.archivedPointHistory
   )
+  const [pendingPointHistory, setPendingPointHistory] = useState<TodoPointHistoryItem[]>(
+    initialTodoSession.current.pendingPointHistory
+  )
   const [hideCompletedTasks, setHideCompletedTasks] = useState(false)
   
   // プロジェクト作成フォーム用
@@ -138,7 +143,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   }, [earnedPoints, onPointsChange])
 
   React.useEffect(() => {
-    const todoSession = { todos, earnedPoints, archivedPointHistory }
+    const todoSession = { todos, earnedPoints, archivedPointHistory, pendingPointHistory }
 
     if (skipNextSaveRef.current) {
       skipNextSaveRef.current = false
@@ -159,7 +164,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
       .catch(() => {
         markTodoSessionPendingSync()
       })
-  }, [todos, earnedPoints, archivedPointHistory])
+  }, [todos, earnedPoints, archivedPointHistory, pendingPointHistory])
 
   React.useEffect(() => {
     if (!isTodoSupabaseSyncConfigured()) return
@@ -182,10 +187,11 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           setTodos(remoteSession.session.todos)
           setEarnedPoints(remoteSession.session.earnedPoints)
           setArchivedPointHistory(remoteSession.session.archivedPointHistory)
-          saveLocalTodoSession(remoteSession.session, remoteSession.updatedAt)
+          setPendingPointHistory(remoteSession.session.pendingPointHistory)
           window.dispatchEvent(
             new CustomEvent('todo-session-updated', { detail: remoteSession.session })
           )
+          saveLocalTodoSession(remoteSession.session, remoteSession.updatedAt)
           return
         }
 
@@ -208,6 +214,24 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
 
     return () => {
       isActive = false
+    }
+  }, [])
+
+  React.useEffect(() => {
+    const handleExternalTodoSessionUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<Partial<TodoSession>>
+      const nextSession = normalizeTodoSession(customEvent.detail)
+      skipNextSaveRef.current = true
+      setTodos(nextSession.todos)
+      setEarnedPoints(nextSession.earnedPoints)
+      setArchivedPointHistory(nextSession.archivedPointHistory)
+      setPendingPointHistory(nextSession.pendingPointHistory)
+    }
+
+    window.addEventListener('todo-session-external-update', handleExternalTodoSessionUpdate)
+
+    return () => {
+      window.removeEventListener('todo-session-external-update', handleExternalTodoSessionUpdate)
     }
   }, [])
 
@@ -568,16 +592,30 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
     draggedProjectFormItem?.type === 'stepGroup' && draggedProjectFormItem.milestoneId === milestoneId
 
   const toggleSingleTask = (id: string) => {
-    let pointsToAdd = 0
     const completedAt = getTodoTimestamp()
+    let nextPendingPointHistory = pendingPointHistory
 
     const newTodos = todos.map(todo => {
       if (todo.type === 'single' && todo.data.id === id) {
         const task = todo.data as SingleTask
         const isNowCompleted = !task.completed
+        const historyId = `single-${task.id}`
+        const wasPending = pendingPointHistory.some(item => item.id === historyId)
 
         if (isNowCompleted && !task.completedAt) {
-          pointsToAdd = TODO_DIFFICULTY_POINTS[task.difficulty]
+          const pendingItem: TodoPointHistoryItem = {
+            id: historyId,
+            title: task.text,
+            type: 'single',
+            points: TODO_DIFFICULTY_POINTS[task.difficulty],
+            completedAt,
+            sourceTodo: todo,
+          }
+          if (!nextPendingPointHistory.some(item => item.id === historyId)) {
+            nextPendingPointHistory = [...nextPendingPointHistory, pendingItem]
+          }
+        } else if (!isNowCompleted) {
+          nextPendingPointHistory = nextPendingPointHistory.filter(item => item.id !== historyId)
         }
 
         return {
@@ -585,7 +623,9 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           data: {
             ...task,
             completed: isNowCompleted,
-            completedAt: isNowCompleted ? (task.completedAt || completedAt) : task.completedAt,
+            completedAt: isNowCompleted
+              ? (task.completedAt || completedAt)
+              : (wasPending ? undefined : task.completedAt),
           },
         }
       }
@@ -593,12 +633,12 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
     })
 
     setTodos(newTodos)
-    setEarnedPoints(prev => prev + pointsToAdd)
+    setPendingPointHistory(nextPendingPointHistory)
   }
 
   const toggleProjectStep = (projectId: string, milestoneId: string, stepId: string) => {
-    let pointsToAdd = 0
     const completedAt = getTodoTimestamp()
+    let nextPendingPointHistory = pendingPointHistory
 
     const newTodos = todos.map(todo => {
       if (todo.type === 'project' && todo.data.id === projectId) {
@@ -612,6 +652,12 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
         const oldStepCompletedAt = project.milestones
           .find(m => m.id === milestoneId)
           ?.steps.find(s => s.id === stepId)?.completedAt
+        const stepHistoryId = `step-${project.id}-${milestoneId}-${stepId}`
+        const milestoneHistoryId = `milestone-${project.id}-${milestoneId}`
+        const projectHistoryId = `project-${project.id}`
+        const wasStepPending = pendingPointHistory.some(item => item.id === stepHistoryId)
+        const wasMilestonePending = pendingPointHistory.some(item => item.id === milestoneHistoryId)
+        const wasProjectPending = pendingPointHistory.some(item => item.id === projectHistoryId)
         
         // ステップのトグル
         const newMilestones = project.milestones.map(m =>
@@ -623,14 +669,16 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
                     ? {
                         ...s,
                         completed: !s.completed,
-                        completedAt: !s.completed ? (s.completedAt || completedAt) : s.completedAt,
+                        completedAt: !s.completed
+                          ? (s.completedAt || completedAt)
+                          : (wasStepPending ? undefined : s.completedAt),
                       }
                     : s
                 ),
                 completed: m.steps.every(s => s.id === stepId ? !s.completed : s.completed),
                 completedAt: m.steps.every(s => s.id === stepId ? !s.completed : s.completed)
                   ? m.completedAt || completedAt
-                  : m.completedAt,
+                  : (wasMilestonePending ? undefined : m.completedAt),
               }
             : m
         )
@@ -645,19 +693,67 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
         const isStepNowCompleted = newMilestones
           .find(m => m.id === milestoneId)
           ?.steps.find(s => s.id === stepId)?.completed
-        
+
         if (isStepNowCompleted && !oldStepCompletedAt) {
-          pointsToAdd += TODO_STEP_POINTS
+          const step = newMilestones
+            .find(m => m.id === milestoneId)
+            ?.steps.find(s => s.id === stepId)
+          if (step && !nextPendingPointHistory.some(item => item.id === stepHistoryId)) {
+            nextPendingPointHistory = [
+              ...nextPendingPointHistory,
+              {
+                id: stepHistoryId,
+                title: `${project.name} / ${step.text}`,
+                type: 'project-step',
+                points: TODO_STEP_POINTS,
+                completedAt,
+                sourceTodo: todo,
+                sourceMilestoneId: milestoneId,
+                sourceStepId: stepId,
+              },
+            ]
+          }
+        } else if (!isStepNowCompleted) {
+          nextPendingPointHistory = nextPendingPointHistory.filter(
+            item => item.id !== stepHistoryId
+          )
         }
-        
-        // マイルストーン完成ボーナス（未完了→完了のとき）
+
         if (!oldMilestoneCompleted && newMilestoneCompleted && !oldMilestoneCompletedAt) {
-          pointsToAdd += TODO_MILESTONE_POINTS
+          nextPendingPointHistory = [
+            ...nextPendingPointHistory,
+            {
+              id: milestoneHistoryId,
+              title: `${project.name} / ${milestoneId}`,
+              type: 'milestone',
+              points: TODO_MILESTONE_POINTS,
+              completedAt,
+              sourceTodo: todo,
+              sourceMilestoneId: milestoneId,
+            },
+          ]
+        } else if (!newMilestoneCompleted) {
+          nextPendingPointHistory = nextPendingPointHistory.filter(
+            item => item.id !== milestoneHistoryId
+          )
         }
-        
-        // プロジェクト完成ボーナス（未完了→完了のとき）
+
         if (!oldProjectCompleted && newProjectCompleted && !oldProjectCompletedAt) {
-          pointsToAdd += TODO_PROJECT_POINTS
+          nextPendingPointHistory = [
+            ...nextPendingPointHistory,
+            {
+              id: projectHistoryId,
+              title: project.name,
+              type: 'project',
+              points: TODO_PROJECT_POINTS,
+              completedAt,
+              sourceTodo: todo,
+            },
+          ]
+        } else if (!newProjectCompleted) {
+          nextPendingPointHistory = nextPendingPointHistory.filter(
+            item => item.id !== projectHistoryId
+          )
         }
         
         return {
@@ -666,7 +762,9 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
             ...project,
             milestones: newMilestones,
             completed: newProjectCompleted,
-            completedAt: newProjectCompleted ? (project.completedAt || completedAt) : project.completedAt,
+            completedAt: newProjectCompleted
+              ? (project.completedAt || completedAt)
+              : (wasProjectPending ? undefined : project.completedAt),
           },
         }
       }
@@ -674,17 +772,20 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
     })
     
     setTodos(newTodos)
-    setEarnedPoints(prev => prev + pointsToAdd)
+    setPendingPointHistory(nextPendingPointHistory)
   }
 
   const deleteTodo = (id: string) => {
     const removedTodos = todos.filter(todo => todo.data.id === id)
-    const removedPointHistory = getTodoPointHistory(removedTodos)
+    const removedAllPointHistory = getTodoPointHistory(removedTodos)
+    const removedPointHistory = getTodoPointHistory(removedTodos, pendingPointHistory)
 
     if (removedPointHistory.length > 0) {
       setArchivedPointHistory(prev => mergeTodoPointHistory(prev, removedPointHistory))
     }
 
+    const removedHistoryIds = new Set(removedAllPointHistory.map(item => item.id))
+    setPendingPointHistory(prev => prev.filter(item => !removedHistoryIds.has(item.id)))
     setTodos(todos.filter(todo => todo.data.id !== id))
   }
 
@@ -702,14 +803,16 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   }
 
   const clearCompletedRecords = () => {
-    if (!hasCompletedRecords()) {
-      window.alert('ポイント履歴に貯められる完成済みタスクはありません。')
+    const pendingPoints = getTodoPendingPoints(pendingPointHistory)
+
+    if (pendingPoints <= 0 || !hasCompletedRecords()) {
+      window.alert('納品予定PTがありません。チェック済みタスクを確認してから納品して。')
       return
     }
 
     if (
       typeof window !== 'undefined' &&
-      window.confirm('完成済みタスクをポイント履歴に貯めますか？獲得済みのTODOポイントと履歴は残ります。')
+      window.confirm(`チェック済みタスクを納品して、${pendingPoints}ptを獲得ポイントに加算する？`)
     ) {
       const nextArchivedPointHistory = mergeTodoPointHistory(
         archivedPointHistory,
@@ -749,6 +852,8 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
 
       setTodos(activeTodos)
       setArchivedPointHistory(nextArchivedPointHistory)
+      setPendingPointHistory([])
+      setEarnedPoints(prev => prev + pendingPoints)
       setActiveTab('tasks')
     }
   }
@@ -762,6 +867,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
       setTodos(demoSession.todos)
       setEarnedPoints(demoSession.earnedPoints)
       setArchivedPointHistory(demoSession.archivedPointHistory)
+      setPendingPointHistory(demoSession.pendingPointHistory)
       setHideCompletedTasks(false)
       setActiveTab('tasks')
     }
@@ -800,7 +906,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
     <div className={styles.panel}>
       <div className={styles.header}>
         <h2>✓ TODO</h2>
-        <span className={styles.pointsBadge}>{earnedPoints}pts</span>
+        <span className={styles.pointsBadge}>納品予定 {getTodoPendingPoints(pendingPointHistory)}pt</span>
       </div>
 
       <div className={styles.tabs}>
@@ -1314,8 +1420,8 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           type="button"
           className={styles.toolButton}
           onClick={clearCompletedRecords}
-          title="完成済みをポイント履歴に貯める"
-          aria-label="完成済みをポイント履歴に貯める"
+          title="チェック済みタスクを納品してポイントを確定"
+          aria-label="チェック済みタスクを納品してポイントを確定"
         >
           💰
         </button>
