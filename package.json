@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "test:points": "tsc -p tsconfig.point-tests.json && node --test .point-tests/tests/pointSystem.test.js",
     "start": "next start",
     "lint": "next lint"
   },

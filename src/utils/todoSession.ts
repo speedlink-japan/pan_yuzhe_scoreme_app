@@ -503,19 +503,116 @@ const normalizeCharacterShop = (
   ),
 })
 
+const reconcilePendingHistory = (
+  todos: TodoItem[],
+  pendingHistory: TodoPointHistoryItem[],
+  hiddenHistoryIds: string[]
+): TodoPointHistoryItem[] => {
+  const pendingIds = new Set(pendingHistory.map(item => item.id))
+  const hiddenIds = new Set(hiddenHistoryIds)
+  const candidates: TodoPointHistoryItem[] = []
+
+  todos.forEach(todo => {
+    if (todo.type === 'single') {
+      const task = todo.data as SingleTask
+      const id = `single-${task.id}`
+      if (task.completed && task.completedAt && pendingIds.has(id) && !hiddenIds.has(id)) {
+        candidates.push({
+          id,
+          title: task.text,
+          type: 'single',
+          points: TODO_DIFFICULTY_POINTS[task.difficulty],
+          completedAt: task.completedAt,
+          sourceTodo: todo,
+        })
+      }
+      return
+    }
+
+    const project = todo.data as Project
+    project.milestones.forEach(milestone => {
+      milestone.steps.forEach(step => {
+        const id = `step-${project.id}-${milestone.id}-${step.id}`
+        if (step.completed && step.completedAt && pendingIds.has(id) && !hiddenIds.has(id)) {
+          candidates.push({
+            id,
+            title: `${project.name} / ${step.text}`,
+            type: 'project-step',
+            points: normalizeNonNegativePoints(step.rewardPoints) ?? TODO_STEP_POINTS,
+            completedAt: step.completedAt,
+            sourceTodo: todo,
+            sourceMilestoneId: milestone.id,
+            sourceStepId: step.id,
+          })
+        }
+      })
+
+      const milestoneId = `milestone-${project.id}-${milestone.id}`
+      if (
+        milestone.completed &&
+        milestone.completedAt &&
+        pendingIds.has(milestoneId) &&
+        !hiddenIds.has(milestoneId)
+      ) {
+        candidates.push({
+          id: milestoneId,
+          title: `${project.name} / ${milestone.name}`,
+          type: 'milestone',
+          points: normalizeNonNegativePoints(milestone.bonusPoints) ?? TODO_MILESTONE_POINTS,
+          completedAt: milestone.completedAt,
+          sourceTodo: todo,
+          sourceMilestoneId: milestone.id,
+        })
+      }
+    })
+
+    const projectId = `project-${project.id}`
+    if (
+      project.completed &&
+      project.completedAt &&
+      pendingIds.has(projectId) &&
+      !hiddenIds.has(projectId)
+    ) {
+      candidates.push({
+        id: projectId,
+        title: project.name,
+        type: 'project',
+        points: normalizeNonNegativePoints(project.bonusPoints) ?? TODO_PROJECT_POINTS,
+        completedAt: project.completedAt,
+        sourceTodo: todo,
+      })
+    }
+  })
+
+  return candidates
+}
+
 export const normalizeTodoSession = (
   value: Partial<TodoSession> | null | undefined,
   fallbackDate = getTodoTimestamp()
-): TodoSession => ({
-  todos: normalizeTodoItems(value?.todos, fallbackDate),
-  earnedPoints: typeof value?.earnedPoints === 'number' ? value.earnedPoints : 0,
-  archivedPointHistory: normalizePointHistory(value?.archivedPointHistory, fallbackDate),
-  pendingPointHistory: normalizePointHistory(value?.pendingPointHistory, fallbackDate),
-  hiddenPointHistoryIds: normalizeHistoryIds(value?.hiddenPointHistoryIds),
-  studyBooks: normalizeStudyBooks(value?.studyBooks, fallbackDate),
-  notebookMemos: normalizeNotebookMemos(value?.notebookMemos, fallbackDate),
-  characterShop: normalizeCharacterShop(value?.characterShop),
-})
+): TodoSession => {
+  const todos = normalizeTodoItems(value?.todos, fallbackDate)
+  const hiddenPointHistoryIds = normalizeHistoryIds(value?.hiddenPointHistoryIds)
+  const pendingPointHistory = reconcilePendingHistory(
+    todos,
+    normalizePointHistory(value?.pendingPointHistory, fallbackDate),
+    hiddenPointHistoryIds
+  )
+
+  return {
+    todos,
+    earnedPoints:
+      typeof value?.earnedPoints === 'number' && Number.isFinite(value.earnedPoints)
+        ? value.earnedPoints
+        : 0,
+    archivedPointHistory: normalizePointHistory(value?.archivedPointHistory, fallbackDate),
+    pendingPointHistory,
+    hiddenPointHistoryIds,
+    studyBooks: normalizeStudyBooks(value?.studyBooks, fallbackDate),
+    notebookMemos: normalizeNotebookMemos(value?.notebookMemos, fallbackDate),
+    characterShop: normalizeCharacterShop(value?.characterShop),
+  }
+}
 
 export const getStudyPoints = (books: StudyBookRecord[]): number =>
   books.reduce((total, book) => total + book.points, 0)

@@ -5,21 +5,20 @@ import styles from './CalendarPanel.module.css'
 import {
   TODO_SESSION_STORAGE_KEY,
   TodoDailyStats,
-  TodoItem,
   TodoPointHistoryItem,
   TodoSession,
-  Project,
   getTodoDailyStats,
   getTodoDateKey,
-  getTodoMilestonePoints,
   getTodoPointHistory,
   getTodoPointHistoryForDate,
-  getTodoProjectPoints,
-  getTodoStepPoints,
   getTodoTimestamp,
   mergeTodoPointHistory,
   normalizeTodoSession,
 } from '@/utils/todoSession'
+import {
+  cloneTodoFromHistory,
+  createTodoHistoryRedoPlan,
+} from '@/utils/todoHistoryRestore'
 import { persistTodoSession as persistSyncedTodoSession } from '@/utils/todoSupabaseSync'
 
 type CalendarView = 'calendar' | 'detail' | 'summary'
@@ -109,164 +108,6 @@ const formatRangeLabel = (start: Date, end: Date): string => {
 
 const formatMonthLabel = (date: Date): string =>
   date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long' })
-
-const createCopyId = (prefix: string) =>
-  `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-
-const getHistoryProjectId = (item: TodoPointHistoryItem): string | null =>
-  item.sourceTodo?.type === 'project' ? item.sourceTodo.data.id : null
-
-const mergeHistoryProjectSources = (
-  projectId: string,
-  history: TodoPointHistoryItem[]
-): Project | null => {
-  const sources = history
-    .map(item => item.sourceTodo)
-    .filter(
-      (todo): todo is TodoItem =>
-        todo?.type === 'project' && todo.data.id === projectId
-    )
-    .map(todo => todo.data as Project)
-
-  if (sources.length === 0) return null
-
-  const milestoneMap = new Map<string, Project['milestones'][number]>()
-
-  sources.forEach(project => {
-    project.milestones.forEach(milestone => {
-      const current = milestoneMap.get(milestone.id)
-      const stepMap = new Map(
-        (current?.steps || []).map(step => [step.id, step])
-      )
-      milestone.steps.forEach(step => stepMap.set(step.id, step))
-      milestoneMap.set(milestone.id, {
-        ...(current || milestone),
-        ...milestone,
-        steps: Array.from(stepMap.values()),
-      })
-    })
-  })
-
-  return {
-    ...sources[0],
-    ...sources[sources.length - 1],
-    milestones: Array.from(milestoneMap.values()),
-  }
-}
-
-const inferLegacyDifficulty = (points: number) => {
-  if (points <= 10) return 'easy' as const
-  if (points >= 50) return 'hard' as const
-  return 'medium' as const
-}
-
-const cloneHistoryTodo = (
-  item: TodoPointHistoryItem,
-  history: TodoPointHistoryItem[]
-): TodoItem | null => {
-  const sourceTodo = item.sourceTodo
-  const createdAt = getTodoTimestamp()
-
-  if (!sourceTodo) {
-    if (item.type !== 'single') return null
-
-    return {
-      type: 'single',
-      data: {
-        id: createCopyId('task-copy'),
-        text: item.title,
-        difficulty: inferLegacyDifficulty(item.points),
-        completed: false,
-        createdAt,
-      },
-    }
-  }
-
-  if (sourceTodo.type === 'single') {
-    return {
-      type: 'single',
-      data: {
-        ...sourceTodo.data,
-        id: createCopyId('task-copy'),
-        completed: false,
-        createdAt,
-        completedAt: undefined,
-      },
-    }
-  }
-
-  const sourceProjectId = sourceTodo.data.id
-  const sourceProject =
-    mergeHistoryProjectSources(sourceProjectId, [item, ...history]) ||
-    (sourceTodo.data as Project)
-  let sourceMilestones = sourceProject.milestones
-
-  if (item.type === 'project-step' && item.sourceMilestoneId && item.sourceStepId) {
-    sourceMilestones = sourceMilestones
-      .filter(milestone => milestone.id === item.sourceMilestoneId)
-      .map(milestone => ({
-        ...milestone,
-        steps: milestone.steps.filter(step => step.id === item.sourceStepId),
-      }))
-  } else if (item.type === 'milestone' && item.sourceMilestoneId) {
-    sourceMilestones = sourceMilestones.filter(
-      milestone => milestone.id === item.sourceMilestoneId
-    )
-  }
-
-  if (sourceMilestones.length === 0) return null
-
-  return {
-    type: 'project',
-    data: {
-      ...sourceProject,
-      id: createCopyId('project-copy'),
-      name: sourceProject.name,
-      completed: false,
-      createdAt,
-      completedAt: undefined,
-      bonusPoints: item.type === 'project' ? getTodoProjectPoints(sourceProject) : 0,
-      milestones: sourceMilestones.map(milestone => ({
-        ...milestone,
-        id: createCopyId('milestone-copy'),
-        completed: false,
-        completedAt: undefined,
-        bonusPoints:
-          item.type === 'project-step' ? 0 : getTodoMilestonePoints(milestone),
-        steps: milestone.steps.map(step => ({
-          ...step,
-          id: createCopyId('step-copy'),
-          completed: false,
-          createdAt,
-          completedAt: undefined,
-          rewardPoints: getTodoStepPoints(step),
-        })),
-      })),
-    },
-  }
-}
-
-const getRedoHistoryItems = (
-  item: TodoPointHistoryItem,
-  history: TodoPointHistoryItem[]
-): TodoPointHistoryItem[] => {
-  if (item.type === 'single' || item.type === 'project-step') {
-    return history.filter(historyItem => historyItem.id === item.id)
-  }
-
-  const projectId = getHistoryProjectId(item)
-  if (!projectId) return history.filter(historyItem => historyItem.id === item.id)
-
-  if (item.type === 'milestone') {
-    return history.filter(historyItem =>
-      getHistoryProjectId(historyItem) === projectId &&
-      historyItem.sourceMilestoneId === item.sourceMilestoneId &&
-      (historyItem.type === 'project-step' || historyItem.type === 'milestone')
-    )
-  }
-
-  return history.filter(historyItem => getHistoryProjectId(historyItem) === projectId)
-}
 
 const isDateInRange = (dateKey: string, start: Date, end: Date): boolean => {
   const date = new Date(`${dateKey}T00:00:00`)
@@ -469,7 +310,7 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
   }
 
   const copyHistoryItem = (item: TodoPointHistoryItem) => {
-    const copiedTodo = cloneHistoryTodo(item, ledgerPointHistory)
+    const copiedTodo = cloneTodoFromHistory(item, ledgerPointHistory)
     if (!copiedTodo) {
       window.alert('この履歴はTODOへ戻せる情報がありません。')
       return
@@ -512,23 +353,18 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
   }
 
   const redoHistoryItem = (item: TodoPointHistoryItem) => {
-    const copiedTodo = cloneHistoryTodo(item, ledgerPointHistory)
-    if (!copiedTodo) {
+    const redoPlan = createTodoHistoryRedoPlan(item, ledgerPointHistory)
+    if (!redoPlan) {
       window.alert('この履歴はTODOへ戻せる情報がありません。')
       return
     }
 
-    const redoHistoryItems = getRedoHistoryItems(item, ledgerPointHistory)
-    const redoPoints = redoHistoryItems.reduce(
-      (total, historyItem) => total + historyItem.points,
-      0
-    )
+    const { todo: copiedTodo, historyIds: redoHistoryIds, points: redoPoints } = redoPlan
 
     if (!window.confirm(`${item.title}をやり直す？${redoPoints}ptを合計から減算してTODOに戻す。`)) {
       return
     }
 
-    const redoHistoryIds = redoHistoryItems.map(historyItem => historyItem.id)
     if (!commitTodoSession({
       ...todoSession,
       todos: [...todoSession.todos, copiedTodo],
