@@ -29,7 +29,7 @@ import {
   isTodoSupabaseSyncConfigured,
   loadRemoteTodoSession,
   markTodoSessionPendingSync,
-  saveLocalTodoSession,
+  persistTodoSession,
   saveRemoteTodoSession,
 } from '@/utils/todoSupabaseSync'
 
@@ -161,18 +161,12 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
     }
 
     const updatedAt = getTodoTimestamp()
-    saveLocalTodoSession(todoSession, updatedAt)
     window.dispatchEvent(new CustomEvent('todo-session-updated', { detail: todoSession }))
-
-    if (!isTodoSupabaseSyncConfigured()) return
-
-    saveRemoteTodoSession(todoSession, updatedAt)
-      .then(() => {
-        clearTodoSessionPendingSync()
-      })
-      .catch(() => {
-        markTodoSessionPendingSync()
-      })
+    try {
+      void persistTodoSession(todoSession, updatedAt).catch(() => undefined)
+    } catch {
+      markTodoSessionPendingSync()
+    }
   }, [todos, earnedPoints, archivedPointHistory, pendingPointHistory, hiddenPointHistoryIds])
 
   React.useEffect(() => {
@@ -201,11 +195,17 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           window.dispatchEvent(
             new CustomEvent('todo-session-updated', { detail: remoteSession.session })
           )
-          saveLocalTodoSession(remoteSession.session, remoteSession.updatedAt)
+          persistTodoSession(remoteSession.session, remoteSession.updatedAt).catch(() => undefined)
           return
         }
 
-        const shouldPushLocalSession = !remoteSession || hasTodoSessionPendingSync()
+        const localIsNewer = Boolean(
+          remoteSession &&
+          localUpdatedAt &&
+          isRemoteTodoSessionNewer(localUpdatedAt, remoteSession.updatedAt)
+        )
+        const shouldPushLocalSession =
+          !remoteSession || hasTodoSessionPendingSync() || localIsNewer
 
         if (shouldPushLocalSession) {
           const todoSession = initialTodoSession.current
@@ -867,10 +867,27 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
         })
         .filter((todo): todo is TodoItem => todo !== null)
 
-      setTodos(activeTodos)
-      setArchivedPointHistory(nextArchivedPointHistory)
-      setPendingPointHistory([])
-      setEarnedPoints(prev => prev + pendingPoints)
+      const nextSession: TodoSession = {
+        todos: activeTodos,
+        earnedPoints: earnedPoints + pendingPoints,
+        archivedPointHistory: nextArchivedPointHistory,
+        pendingPointHistory: [],
+        hiddenPointHistoryIds,
+      }
+      const updatedAt = getTodoTimestamp()
+
+      try {
+        void persistTodoSession(nextSession, updatedAt).catch(() => undefined)
+      } catch {
+        window.alert('保存に失敗したため、納品しなかった。')
+        return
+      }
+
+      skipNextSaveRef.current = true
+      setTodos(nextSession.todos)
+      setArchivedPointHistory(nextSession.archivedPointHistory)
+      setPendingPointHistory(nextSession.pendingPointHistory)
+      setEarnedPoints(nextSession.earnedPoints)
       setActiveTab('tasks')
     }
   }

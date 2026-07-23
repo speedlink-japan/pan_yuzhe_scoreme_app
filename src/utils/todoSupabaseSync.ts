@@ -14,6 +14,7 @@ export interface TodoRemoteSession {
 const TODO_SESSION_UPDATED_AT_STORAGE_KEY = `${TODO_SESSION_STORAGE_KEY}.updatedAt`
 const TODO_SESSION_PENDING_SYNC_STORAGE_KEY = `${TODO_SESSION_STORAGE_KEY}.pendingSync`
 const TODO_SYNC_TABLE = 'todo_sessions'
+let remoteSaveQueue: Promise<void> = Promise.resolve()
 
 const getSupabaseUrl = () => process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '')
 const getSupabaseAnonKey = () => process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -144,4 +145,33 @@ export const saveRemoteTodoSession = async (
   if (!response.ok) {
     throw new Error(`TODO session save failed: ${response.status}`)
   }
+}
+
+export const queueRemoteTodoSessionSave = (
+  session: TodoSession,
+  updatedAt: string
+): Promise<void> => {
+  if (!isTodoSupabaseSyncConfigured()) return Promise.resolve()
+
+  markTodoSessionPendingSync()
+  remoteSaveQueue = remoteSaveQueue
+    .catch(() => undefined)
+    .then(() => saveRemoteTodoSession(session, updatedAt))
+
+  return remoteSaveQueue
+    .then(() => {
+      clearTodoSessionPendingSync()
+    })
+    .catch(error => {
+      markTodoSessionPendingSync()
+      throw error
+    })
+}
+
+export const persistTodoSession = (
+  session: TodoSession,
+  updatedAt: string
+): Promise<void> => {
+  saveLocalTodoSession(session, updatedAt)
+  return queueRemoteTodoSessionSave(session, updatedAt)
 }

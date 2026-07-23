@@ -20,7 +20,7 @@ import {
   mergeTodoPointHistory,
   normalizeTodoSession,
 } from '@/utils/todoSession'
-import { saveLocalTodoSession } from '@/utils/todoSupabaseSync'
+import { persistTodoSession as persistSyncedTodoSession } from '@/utils/todoSupabaseSync'
 
 type CalendarView = 'calendar' | 'detail' | 'summary'
 type SummaryMode = 'week' | 'month' | 'compare'
@@ -453,13 +453,19 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
     setSelectedHistoryIds([])
   }
 
-  const persistTodoSession = (nextSession: TodoSession) => {
+  const commitTodoSession = (nextSession: TodoSession): boolean => {
     const updatedAt = getTodoTimestamp()
-    saveLocalTodoSession(nextSession, updatedAt)
+    try {
+      void persistSyncedTodoSession(nextSession, updatedAt).catch(() => undefined)
+    } catch {
+      window.alert('保存に失敗したため、変更しなかった。')
+      return false
+    }
     setTodoSession(nextSession)
     window.dispatchEvent(
       new CustomEvent('todo-session-external-update', { detail: nextSession })
     )
+    return true
   }
 
   const copyHistoryItem = (item: TodoPointHistoryItem) => {
@@ -469,10 +475,10 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
       return
     }
 
-    persistTodoSession({
+    if (!commitTodoSession({
       ...todoSession,
       todos: [...todoSession.todos, copiedTodo],
-    })
+    })) return
     window.alert('TODOにコピーした。')
   }
 
@@ -495,12 +501,12 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
     }
 
     const selectedIds = new Set(selectedHistoryIds)
-    persistTodoSession({
+    if (!commitTodoSession({
       ...todoSession,
       hiddenPointHistoryIds: Array.from(
         new Set([...todoSession.hiddenPointHistoryIds, ...selectedIds])
       ),
-    })
+    })) return
     setSelectedHistoryIds([])
     setIsSelectingHistory(false)
   }
@@ -523,14 +529,14 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
     }
 
     const redoHistoryIds = redoHistoryItems.map(historyItem => historyItem.id)
-    persistTodoSession({
+    if (!commitTodoSession({
       ...todoSession,
       todos: [...todoSession.todos, copiedTodo],
       earnedPoints: todoSession.earnedPoints - redoPoints,
       hiddenPointHistoryIds: Array.from(
         new Set([...todoSession.hiddenPointHistoryIds, ...redoHistoryIds])
       ),
-    })
+    })) return
     setSelectedHistoryIds(prev => prev.filter(id => !redoHistoryIds.includes(id)))
   }
 
