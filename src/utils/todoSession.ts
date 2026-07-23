@@ -6,6 +6,7 @@ export interface Step {
   completed: boolean
   createdAt: string
   completedAt?: string
+  rewardPoints?: number
 }
 
 export interface Milestone {
@@ -14,6 +15,7 @@ export interface Milestone {
   steps: Step[]
   completed: boolean
   completedAt?: string
+  bonusPoints?: number
 }
 
 export interface Project {
@@ -23,6 +25,7 @@ export interface Project {
   completed: boolean
   createdAt: string
   completedAt?: string
+  bonusPoints?: number
 }
 
 export interface SingleTask {
@@ -44,6 +47,7 @@ export interface TodoSession {
   earnedPoints: number
   archivedPointHistory: TodoPointHistoryItem[]
   pendingPointHistory: TodoPointHistoryItem[]
+  hiddenPointHistoryIds: string[]
 }
 
 export interface TodoDailyStats {
@@ -118,6 +122,7 @@ export const createDemoTodoSession = (): TodoSession => {
     earnedPoints: 71,
     archivedPointHistory: [],
     pendingPointHistory: [],
+    hiddenPointHistoryIds: [],
     todos: [
       {
         type: 'single',
@@ -223,6 +228,9 @@ const isDifficulty = (value: unknown): value is Difficulty =>
 const normalizeDate = (value: unknown, fallback: string): string =>
   typeof value === 'string' && value.length > 0 ? value : fallback
 
+const normalizeNonNegativePoints = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+
 const normalizeCompletedDate = (
   completed: boolean,
   value: unknown,
@@ -241,6 +249,7 @@ const normalizeStep = (value: Partial<Step>, fallbackDate: string): Step => {
     completed,
     createdAt: normalizeDate(value.createdAt, fallbackDate),
     completedAt: normalizeCompletedDate(completed, value.completedAt, fallbackDate),
+    rewardPoints: normalizeNonNegativePoints(value.rewardPoints),
   }
 }
 
@@ -271,6 +280,7 @@ const normalizeProject = (value: Partial<Project>, fallbackDate: string): Projec
           milestone.completedAt,
           fallbackDate
         ),
+        bonusPoints: normalizeNonNegativePoints(milestone.bonusPoints),
       }))
     : []
   const completed = Boolean(value.completed)
@@ -282,6 +292,7 @@ const normalizeProject = (value: Partial<Project>, fallbackDate: string): Projec
     completed,
     createdAt: normalizeDate(value.createdAt, fallbackDate),
     completedAt: normalizeCompletedDate(completed, value.completedAt, fallbackDate),
+    bonusPoints: normalizeNonNegativePoints(value.bonusPoints),
   }
 }
 
@@ -321,7 +332,9 @@ const normalizePointHistoryItem = (
     typeof value.id !== 'string' ||
     typeof value.title !== 'string' ||
     !isPointHistoryType(value.type) ||
-    typeof value.points !== 'number'
+    typeof value.points !== 'number' ||
+    !Number.isFinite(value.points) ||
+    value.points < 0
   ) {
     return null
   }
@@ -347,10 +360,17 @@ const normalizePointHistory = (
 ): TodoPointHistoryItem[] => {
   if (!Array.isArray(value)) return []
 
-  return value
+  const normalized = value
     .map(item => normalizePointHistoryItem(item, fallbackDate))
     .filter((item): item is TodoPointHistoryItem => item !== null)
+
+  return Array.from(new Map(normalized.map(item => [item.id, item])).values())
 }
+
+const normalizeHistoryIds = (value: string[] | undefined): string[] =>
+  Array.isArray(value)
+    ? Array.from(new Set(value.filter(item => typeof item === 'string' && item.length > 0)))
+    : []
 
 export const normalizeTodoSession = (
   value: Partial<TodoSession> | null | undefined,
@@ -360,7 +380,17 @@ export const normalizeTodoSession = (
   earnedPoints: typeof value?.earnedPoints === 'number' ? value.earnedPoints : 0,
   archivedPointHistory: normalizePointHistory(value?.archivedPointHistory, fallbackDate),
   pendingPointHistory: normalizePointHistory(value?.pendingPointHistory, fallbackDate),
+  hiddenPointHistoryIds: normalizeHistoryIds(value?.hiddenPointHistoryIds),
 })
+
+export const getTodoStepPoints = (step: Step): number =>
+  normalizeNonNegativePoints(step.rewardPoints) ?? TODO_STEP_POINTS
+
+export const getTodoMilestonePoints = (milestone: Milestone): number =>
+  normalizeNonNegativePoints(milestone.bonusPoints) ?? TODO_MILESTONE_POINTS
+
+export const getTodoProjectPoints = (project: Project): number =>
+  normalizeNonNegativePoints(project.bonusPoints) ?? TODO_PROJECT_POINTS
 
 export const getTodoDateKey = (dateValue: string): string => {
   const date = new Date(dateValue)
@@ -455,13 +485,15 @@ export const getTodoPointHistoryForDate = (
   todos: TodoItem[],
   date: string,
   archivedPointHistory: TodoPointHistoryItem[] = [],
-  pendingPointHistory: TodoPointHistoryItem[] = []
+  pendingPointHistory: TodoPointHistoryItem[] = [],
+  hiddenPointHistoryIds: string[] = []
 ): TodoPointHistoryItem[] => {
-  const history = getTodoPointHistory(todos, pendingPointHistory).filter(
+  const hiddenIds = new Set(hiddenPointHistoryIds)
+  const history = getTodoPointHistory(todos, pendingPointHistory, hiddenPointHistoryIds).filter(
     item => getTodoDateKey(item.completedAt) === date
   )
   const archivedHistory = archivedPointHistory.filter(
-    item => getTodoDateKey(item.completedAt) === date
+    item => getTodoDateKey(item.completedAt) === date && !hiddenIds.has(item.id)
   )
 
   return mergeTodoPointHistory(archivedHistory, history).sort((a, b) => {
@@ -473,16 +505,18 @@ export const getTodoPointHistoryForDate = (
 
 export const getTodoPointHistory = (
   todos: TodoItem[],
-  pendingPointHistory: TodoPointHistoryItem[] = []
+  pendingPointHistory: TodoPointHistoryItem[] = [],
+  hiddenPointHistoryIds: string[] = []
 ): TodoPointHistoryItem[] => {
   const pendingIds = new Set(pendingPointHistory.map(item => item.id))
+  const hiddenIds = new Set(hiddenPointHistoryIds)
 
   return todos.reduce<TodoPointHistoryItem[]>((items, todo) => {
     if (todo.type === 'single') {
       const task = todo.data as SingleTask
 
       const historyId = `single-${task.id}`
-      if (task.completedAt && !pendingIds.has(historyId)) {
+      if (task.completedAt && !pendingIds.has(historyId) && !hiddenIds.has(historyId)) {
         items.push({
           id: historyId,
           title: task.text,
@@ -501,12 +535,12 @@ export const getTodoPointHistory = (
     project.milestones.forEach(milestone => {
       milestone.steps.forEach(step => {
         const historyId = `step-${project.id}-${milestone.id}-${step.id}`
-        if (step.completedAt && !pendingIds.has(historyId)) {
+        if (step.completedAt && !pendingIds.has(historyId) && !hiddenIds.has(historyId)) {
           items.push({
             id: historyId,
             title: `${project.name} / ${step.text}`,
             type: 'project-step',
-            points: TODO_STEP_POINTS,
+            points: getTodoStepPoints(step),
             completedAt: step.completedAt,
             sourceTodo: todo,
             sourceMilestoneId: milestone.id,
@@ -526,12 +560,16 @@ export const getTodoPointHistory = (
           : undefined)
 
       const milestoneHistoryId = `milestone-${project.id}-${milestone.id}`
-      if (milestoneCompletedAt && !pendingIds.has(milestoneHistoryId)) {
+      if (
+        milestoneCompletedAt &&
+        !pendingIds.has(milestoneHistoryId) &&
+        !hiddenIds.has(milestoneHistoryId)
+      ) {
         items.push({
           id: milestoneHistoryId,
           title: `${project.name} / ${milestone.name}`,
           type: 'milestone',
-          points: TODO_MILESTONE_POINTS,
+          points: getTodoMilestonePoints(milestone),
           completedAt: milestoneCompletedAt,
           sourceTodo: todo,
           sourceMilestoneId: milestone.id,
@@ -540,12 +578,16 @@ export const getTodoPointHistory = (
     })
 
     const projectHistoryId = `project-${project.id}`
-    if (project.completedAt && !pendingIds.has(projectHistoryId)) {
+    if (
+      project.completedAt &&
+      !pendingIds.has(projectHistoryId) &&
+      !hiddenIds.has(projectHistoryId)
+    ) {
       items.push({
         id: projectHistoryId,
         title: project.name,
         type: 'project',
-        points: TODO_PROJECT_POINTS,
+        points: getTodoProjectPoints(project),
         completedAt: project.completedAt,
         sourceTodo: todo,
       })

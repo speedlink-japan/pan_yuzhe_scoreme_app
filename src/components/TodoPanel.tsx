@@ -10,12 +10,12 @@ import {
   TodoSession,
   TODO_SESSION_STORAGE_KEY,
   TODO_DIFFICULTY_POINTS,
-  TODO_MILESTONE_POINTS,
-  TODO_PROJECT_POINTS,
-  TODO_STEP_POINTS,
   createDemoTodoSession,
   getTodoPointHistory,
+  getTodoMilestonePoints,
   getTodoPendingPoints,
+  getTodoProjectPoints,
+  getTodoStepPoints,
   getTodoTimestamp,
   mergeTodoPointHistory,
   normalizeTodoSession,
@@ -71,16 +71,16 @@ const calculatePoints = (item: TodoItem): number => {
   } else {
     // プロジェクトポイント計算
     const project = item.data as Project
-    let points = TODO_PROJECT_POINTS
+    let points = getTodoProjectPoints(project)
     let completedSteps = 0
     let totalSteps = 0
 
     project.milestones.forEach(milestone => {
-      points += TODO_MILESTONE_POINTS
+      points += getTodoMilestonePoints(milestone)
       milestone.steps.forEach(step => {
         totalSteps++
         if (step.completed) completedSteps++
-        points += TODO_STEP_POINTS
+        points += getTodoStepPoints(step)
       })
     })
 
@@ -106,6 +106,9 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   )
   const [pendingPointHistory, setPendingPointHistory] = useState<TodoPointHistoryItem[]>(
     initialTodoSession.current.pendingPointHistory
+  )
+  const [hiddenPointHistoryIds, setHiddenPointHistoryIds] = useState<string[]>(
+    initialTodoSession.current.hiddenPointHistoryIds
   )
   const [hideCompletedTasks, setHideCompletedTasks] = useState(false)
   
@@ -143,7 +146,13 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   }, [earnedPoints, onPointsChange])
 
   React.useEffect(() => {
-    const todoSession = { todos, earnedPoints, archivedPointHistory, pendingPointHistory }
+    const todoSession = {
+      todos,
+      earnedPoints,
+      archivedPointHistory,
+      pendingPointHistory,
+      hiddenPointHistoryIds,
+    }
 
     if (skipNextSaveRef.current) {
       skipNextSaveRef.current = false
@@ -164,7 +173,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
       .catch(() => {
         markTodoSessionPendingSync()
       })
-  }, [todos, earnedPoints, archivedPointHistory, pendingPointHistory])
+  }, [todos, earnedPoints, archivedPointHistory, pendingPointHistory, hiddenPointHistoryIds])
 
   React.useEffect(() => {
     if (!isTodoSupabaseSyncConfigured()) return
@@ -188,6 +197,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
           setEarnedPoints(remoteSession.session.earnedPoints)
           setArchivedPointHistory(remoteSession.session.archivedPointHistory)
           setPendingPointHistory(remoteSession.session.pendingPointHistory)
+          setHiddenPointHistoryIds(remoteSession.session.hiddenPointHistoryIds)
           window.dispatchEvent(
             new CustomEvent('todo-session-updated', { detail: remoteSession.session })
           )
@@ -226,6 +236,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
       setEarnedPoints(nextSession.earnedPoints)
       setArchivedPointHistory(nextSession.archivedPointHistory)
       setPendingPointHistory(nextSession.pendingPointHistory)
+      setHiddenPointHistoryIds(nextSession.hiddenPointHistoryIds)
     }
 
     window.addEventListener('todo-session-external-update', handleExternalTodoSessionUpdate)
@@ -705,7 +716,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
                 id: stepHistoryId,
                 title: `${project.name} / ${step.text}`,
                 type: 'project-step',
-                points: TODO_STEP_POINTS,
+                points: getTodoStepPoints(step),
                 completedAt,
                 sourceTodo: todo,
                 sourceMilestoneId: milestoneId,
@@ -726,7 +737,9 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
               id: milestoneHistoryId,
               title: `${project.name} / ${milestoneId}`,
               type: 'milestone',
-              points: TODO_MILESTONE_POINTS,
+              points: getTodoMilestonePoints(
+                newMilestones.find(milestone => milestone.id === milestoneId)!
+              ),
               completedAt,
               sourceTodo: todo,
               sourceMilestoneId: milestoneId,
@@ -745,7 +758,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
               id: projectHistoryId,
               title: project.name,
               type: 'project',
-              points: TODO_PROJECT_POINTS,
+              points: getTodoProjectPoints(project),
               completedAt,
               sourceTodo: todo,
             },
@@ -778,7 +791,11 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
   const deleteTodo = (id: string) => {
     const removedTodos = todos.filter(todo => todo.data.id === id)
     const removedAllPointHistory = getTodoPointHistory(removedTodos)
-    const removedPointHistory = getTodoPointHistory(removedTodos, pendingPointHistory)
+    const removedPointHistory = getTodoPointHistory(
+      removedTodos,
+      pendingPointHistory,
+      hiddenPointHistoryIds
+    )
 
     if (removedPointHistory.length > 0) {
       setArchivedPointHistory(prev => mergeTodoPointHistory(prev, removedPointHistory))
@@ -816,7 +833,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
     ) {
       const nextArchivedPointHistory = mergeTodoPointHistory(
         archivedPointHistory,
-        getTodoPointHistory(todos)
+        getTodoPointHistory(todos, [], hiddenPointHistoryIds)
       )
       const activeTodos = todos
         .map(todo => {
@@ -868,6 +885,7 @@ const TodoPanel: React.FC<TodoPanelProps> = ({ onPointsChange }) => {
       setEarnedPoints(demoSession.earnedPoints)
       setArchivedPointHistory(demoSession.archivedPointHistory)
       setPendingPointHistory(demoSession.pendingPointHistory)
+      setHiddenPointHistoryIds(demoSession.hiddenPointHistoryIds)
       setHideCompletedTasks(false)
       setActiveTab('tasks')
     }

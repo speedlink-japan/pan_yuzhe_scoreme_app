@@ -11,8 +11,11 @@ import {
   Project,
   getTodoDailyStats,
   getTodoDateKey,
+  getTodoMilestonePoints,
   getTodoPointHistory,
   getTodoPointHistoryForDate,
+  getTodoProjectPoints,
+  getTodoStepPoints,
   getTodoTimestamp,
   mergeTodoPointHistory,
   normalizeTodoSession,
@@ -110,7 +113,57 @@ const formatMonthLabel = (date: Date): string =>
 const createCopyId = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 
-const cloneHistoryTodo = (item: TodoPointHistoryItem): TodoItem | null => {
+const getHistoryProjectId = (item: TodoPointHistoryItem): string | null =>
+  item.sourceTodo?.type === 'project' ? item.sourceTodo.data.id : null
+
+const mergeHistoryProjectSources = (
+  projectId: string,
+  history: TodoPointHistoryItem[]
+): Project | null => {
+  const sources = history
+    .map(item => item.sourceTodo)
+    .filter(
+      (todo): todo is TodoItem =>
+        todo?.type === 'project' && todo.data.id === projectId
+    )
+    .map(todo => todo.data as Project)
+
+  if (sources.length === 0) return null
+
+  const milestoneMap = new Map<string, Project['milestones'][number]>()
+
+  sources.forEach(project => {
+    project.milestones.forEach(milestone => {
+      const current = milestoneMap.get(milestone.id)
+      const stepMap = new Map(
+        (current?.steps || []).map(step => [step.id, step])
+      )
+      milestone.steps.forEach(step => stepMap.set(step.id, step))
+      milestoneMap.set(milestone.id, {
+        ...(current || milestone),
+        ...milestone,
+        steps: Array.from(stepMap.values()),
+      })
+    })
+  })
+
+  return {
+    ...sources[0],
+    ...sources[sources.length - 1],
+    milestones: Array.from(milestoneMap.values()),
+  }
+}
+
+const inferLegacyDifficulty = (points: number) => {
+  if (points <= 10) return 'easy' as const
+  if (points >= 50) return 'hard' as const
+  return 'medium' as const
+}
+
+const cloneHistoryTodo = (
+  item: TodoPointHistoryItem,
+  history: TodoPointHistoryItem[]
+): TodoItem | null => {
   const sourceTodo = item.sourceTodo
   const createdAt = getTodoTimestamp()
 
@@ -122,7 +175,7 @@ const cloneHistoryTodo = (item: TodoPointHistoryItem): TodoItem | null => {
       data: {
         id: createCopyId('task-copy'),
         text: item.title,
-        difficulty: 'medium',
+        difficulty: inferLegacyDifficulty(item.points),
         completed: false,
         createdAt,
       },
@@ -142,7 +195,10 @@ const cloneHistoryTodo = (item: TodoPointHistoryItem): TodoItem | null => {
     }
   }
 
-  const sourceProject = sourceTodo.data as Project
+  const sourceProjectId = sourceTodo.data.id
+  const sourceProject =
+    mergeHistoryProjectSources(sourceProjectId, [item, ...history]) ||
+    (sourceTodo.data as Project)
   let sourceMilestones = sourceProject.milestones
 
   if (item.type === 'project-step' && item.sourceMilestoneId && item.sourceStepId) {
@@ -169,21 +225,47 @@ const cloneHistoryTodo = (item: TodoPointHistoryItem): TodoItem | null => {
       completed: false,
       createdAt,
       completedAt: undefined,
+      bonusPoints: item.type === 'project' ? getTodoProjectPoints(sourceProject) : 0,
       milestones: sourceMilestones.map(milestone => ({
         ...milestone,
         id: createCopyId('milestone-copy'),
         completed: false,
         completedAt: undefined,
+        bonusPoints:
+          item.type === 'project-step' ? 0 : getTodoMilestonePoints(milestone),
         steps: milestone.steps.map(step => ({
           ...step,
           id: createCopyId('step-copy'),
           completed: false,
           createdAt,
           completedAt: undefined,
+          rewardPoints: getTodoStepPoints(step),
         })),
       })),
     },
   }
+}
+
+const getRedoHistoryItems = (
+  item: TodoPointHistoryItem,
+  history: TodoPointHistoryItem[]
+): TodoPointHistoryItem[] => {
+  if (item.type === 'single' || item.type === 'project-step') {
+    return history.filter(historyItem => historyItem.id === item.id)
+  }
+
+  const projectId = getHistoryProjectId(item)
+  if (!projectId) return history.filter(historyItem => historyItem.id === item.id)
+
+  if (item.type === 'milestone') {
+    return history.filter(historyItem =>
+      getHistoryProjectId(historyItem) === projectId &&
+      historyItem.sourceMilestoneId === item.sourceMilestoneId &&
+      (historyItem.type === 'project-step' || historyItem.type === 'milestone')
+    )
+  }
+
+  return history.filter(historyItem => getHistoryProjectId(historyItem) === projectId)
 }
 
 const isDateInRange = (dateKey: string, start: Date, end: Date): boolean => {
@@ -261,7 +343,7 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
     () => getTodoDailyStats(todoSession.todos, todoSession.archivedPointHistory),
     [todoSession.todos, todoSession.archivedPointHistory]
   )
-  const allPointHistory = React.useMemo(
+  const ledgerPointHistory = React.useMemo(
     () =>
       mergeTodoPointHistory(
         todoSession.archivedPointHistory,
@@ -269,6 +351,10 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
       ),
     [todoSession.archivedPointHistory, todoSession.pendingPointHistory, todoSession.todos]
   )
+  const allPointHistory = React.useMemo(() => {
+    const hiddenIds = new Set(todoSession.hiddenPointHistoryIds)
+    return ledgerPointHistory.filter(item => !hiddenIds.has(item.id))
+  }, [ledgerPointHistory, todoSession.hiddenPointHistoryIds])
   const selectedStats = selectedDateKey
     ? todoStatsByDate[selectedDateKey] || emptyStats(selectedDateKey)
     : null
@@ -279,7 +365,8 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
             todoSession.todos,
             selectedDateKey,
             todoSession.archivedPointHistory,
-            todoSession.pendingPointHistory
+            todoSession.pendingPointHistory,
+            todoSession.hiddenPointHistoryIds
           )
         : [],
     [
@@ -287,6 +374,7 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
       todoSession.todos,
       todoSession.archivedPointHistory,
       todoSession.pendingPointHistory,
+      todoSession.hiddenPointHistoryIds,
     ]
   )
   const currentWeekStart = React.useMemo(() => startOfWeek(today), [today])
@@ -375,7 +463,7 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
   }
 
   const copyHistoryItem = (item: TodoPointHistoryItem) => {
-    const copiedTodo = cloneHistoryTodo(item)
+    const copiedTodo = cloneHistoryTodo(item, ledgerPointHistory)
     if (!copiedTodo) {
       window.alert('この履歴はTODOへ戻せる情報がありません。')
       return
@@ -409,8 +497,8 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
     const selectedIds = new Set(selectedHistoryIds)
     persistTodoSession({
       ...todoSession,
-      archivedPointHistory: todoSession.archivedPointHistory.filter(
-        item => !selectedIds.has(item.id)
+      hiddenPointHistoryIds: Array.from(
+        new Set([...todoSession.hiddenPointHistoryIds, ...selectedIds])
       ),
     })
     setSelectedHistoryIds([])
@@ -418,26 +506,32 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
   }
 
   const redoHistoryItem = (item: TodoPointHistoryItem) => {
-    const copiedTodo = cloneHistoryTodo(item)
+    const copiedTodo = cloneHistoryTodo(item, ledgerPointHistory)
     if (!copiedTodo) {
       window.alert('この履歴はTODOへ戻せる情報がありません。')
       return
     }
 
-    if (!window.confirm(`${item.title}をやり直す？${item.points}ptを合計から減算してTODOに戻す。`)) {
+    const redoHistoryItems = getRedoHistoryItems(item, ledgerPointHistory)
+    const redoPoints = redoHistoryItems.reduce(
+      (total, historyItem) => total + historyItem.points,
+      0
+    )
+
+    if (!window.confirm(`${item.title}をやり直す？${redoPoints}ptを合計から減算してTODOに戻す。`)) {
       return
     }
 
-    const selectedIds = new Set([item.id])
+    const redoHistoryIds = redoHistoryItems.map(historyItem => historyItem.id)
     persistTodoSession({
       ...todoSession,
       todos: [...todoSession.todos, copiedTodo],
-      earnedPoints: todoSession.earnedPoints - item.points,
-      archivedPointHistory: todoSession.archivedPointHistory.filter(
-        historyItem => !selectedIds.has(historyItem.id)
+      earnedPoints: todoSession.earnedPoints - redoPoints,
+      hiddenPointHistoryIds: Array.from(
+        new Set([...todoSession.hiddenPointHistoryIds, ...redoHistoryIds])
       ),
     })
-    setSelectedHistoryIds(prev => prev.filter(id => id !== item.id))
+    setSelectedHistoryIds(prev => prev.filter(id => !redoHistoryIds.includes(id)))
   }
 
   return (
