@@ -1,0 +1,347 @@
+.page {
+  background: linear-gradient(145deg, #FFF9F5 0%, #F4F7F4 48%, #F8F0E8 100%);
+  color: #574640;
+  min-height: 100vh;
+  padding-bottom: 40px;
+}
+
+.coordinateHeader {
+  backdrop-filter: blur(16px);
+  background: rgba(255, 253, 249, 0.94);
+  border-bottom: 1px solid rgba(190, 158, 146, 0.28);
+  box-shadow: 0 8px 30px rgba(91, 67, 58, 0.08);
+  padding: 18px clamp(16px, 4vw, 56px);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.titleRow {
+  align-items: center;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.eyebrow {
+  color: #B27882;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin: 0 0 3px;
+  text-transform: uppercase;
+}
+
+.titleRow h1 {
+  font-size: clamp(20px, 3vw, 30px);
+  line-height: 1.2;
+  margin: 0;
+}
+
+.backLink,
+.copyButton,
+.gridButton {
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.backLink {
+  background: #FFF2F4;
+  border: 1px solid #EBC7CE;
+  color: #7B5658;
+  padding: 9px 13px;
+  white-space: nowrap;
+}
+
+.coordinateSummary {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.coordinateCard,
+.widthControl {
+  background: #FFFFFF;
+  border: 1px solid #ECDDD6;
+  border-radius: 10px;
+  box-shadow: 0 3px 12px rgba(91, 67, 58, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.coordinateCard span,
+.widthControl > span:first-child {
+  color: #9A7C73;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.coordinateCard strong {
+  font-size: clamp(14px, 2vw, 19px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.widthInputRow {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.widthInputRow input {
+  accent-color: #D994A5;
+  flex: 1;
+  min-width: 80px;
+}
+
+.widthInputRow strong {
+  font-size: 14px;
+  min-width: 50px;
+  text-align: right;
+}
+
+.configurationRow {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.configurationRow code {
+  background: #352E2B;
+  border-radius: 8px;
+  color: #FFF6ED;
+  flex: 1;
+  font-size: 12px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.copyButton,
+.gridButton {
+  cursor: pointer;
+  padding: 9px 12px;
+  white-space: nowrap;
+}
+
+.copyButton {
+  background: #D98FA2;
+  border: 1px solid #D98FA2;
+  color: #FFFFFF;
+}
+
+.gridButton {
+  background: #FFFFFF;
+  border: 1px solid #DCC9C1;
+  color: #705A53;
+}
+
+.copyButton:hover,
+.gridButton:hover,
+.backLink:hover {
+  filter: brightness(0.98);
+  transform: translateY(-1px);
+}
+
+.workspace {
+  margin: 0 auto;
+  max-width: 1640px;
+  padding: 22px clamp(10px, 3vw, 40px) 0;
+}
+
+.instructions,
+.canvasMeta {
+  color: #826B63;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.instructions {
+  margin-bottom: 9px;
+}
+
+.canvasShell {
+  background: #342D2A;
+  border: 1px solid rgba(89, 63, 55, 0.45);
+  border-radius: 12px;
+  box-shadow: 0 18px 45px rgba(70, 49, 43, 0.2);
+  margin: 0 auto;
+  max-width: 1586px;
+  overflow: hidden;
+  padding: clamp(4px, 0.7vw, 10px);
+}
+
+.scene {
+  aspect-ratio: 1586 / 992;
+  background: #F8EFE8;
+  border: 0;
+  cursor: crosshair;
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  touch-action: none;
+  width: 100%;
+}
+
+.background {
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  width: 100%;
+}
+
+.grid {
+  background-image:
+    linear-gradient(to right, rgba(114, 78, 73, 0.3) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(114, 78, 73, 0.3) 1px, transparent 1px);
+  background-size: 10% 10%;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.xLabel,
+.yLabel {
+  background: rgba(50, 40, 37, 0.72);
+  border-radius: 3px;
+  color: #FFFFFF;
+  font-size: clamp(7px, 0.8vw, 11px);
+  line-height: 1;
+  padding: 2px 3px;
+  position: absolute;
+}
+
+.xLabel {
+  top: 3px;
+  transform: translateX(-50%);
+}
+
+.yLabel {
+  left: 3px;
+  transform: translateY(-50%);
+}
+
+.xLabel.labelStart {
+  transform: none;
+}
+
+.xLabel.labelEnd {
+  transform: translateX(-100%);
+}
+
+.yLabel.labelStart {
+  transform: none;
+}
+
+.yLabel.labelEnd {
+  transform: translateY(-100%);
+}
+
+.marker {
+  border: 2px solid #E62D45;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 3px 12px rgba(80, 20, 28, 0.35);
+  height: clamp(12px, 1.5vw, 22px);
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: clamp(12px, 1.5vw, 22px);
+}
+
+.marker::before,
+.marker::after {
+  background: #E62D45;
+  content: '';
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.marker::before {
+  height: 2px;
+  width: 42px;
+}
+
+.marker::after {
+  height: 42px;
+  width: 2px;
+}
+
+.marker > span {
+  background: #E62D45;
+  border-radius: 4px;
+  bottom: calc(100% + 8px);
+  color: #FFFFFF;
+  font-size: clamp(8px, 0.85vw, 12px);
+  font-weight: 800;
+  left: 50%;
+  padding: 4px 6px;
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.canvasMeta {
+  margin-top: 9px;
+  text-align: right;
+}
+
+@media (max-width: 760px) {
+  .coordinateHeader {
+    padding: 12px;
+    position: relative;
+  }
+
+  .coordinateSummary {
+    grid-template-columns: 1fr;
+  }
+
+  .configurationRow {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .configurationRow code {
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .copyButton,
+  .gridButton {
+    flex: 1;
+  }
+
+  .workspace {
+    padding-top: 14px;
+  }
+
+  .canvasMeta {
+    text-align: left;
+  }
+}
+
+@media (max-width: 420px) {
+  .titleRow {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .backLink {
+    font-size: 10px;
+    padding: 7px 9px;
+  }
+}
