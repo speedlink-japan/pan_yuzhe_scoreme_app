@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:check": "node scripts/show-dev-context.mjs",
+    "predev": "npm run dev:check",
     "build": "next build",
     "test:points": "tsc -p tsconfig.point-tests.json && node --test .point-tests/tests/pointSystem.test.js",
     "start": "next start",
