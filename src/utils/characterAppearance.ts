@@ -22,7 +22,7 @@ export const defaultCharacterAppearance: CharacterAppearance = {
   face: 'soft',
   eyes: 'round',
   eyesColor: '#4F3A37',
-  mouth: 'smile',
+  mouth: 'small',
   hair: 'twinLoop',
   hairColor: '#7EA7A2',
   outfit: 'female',
