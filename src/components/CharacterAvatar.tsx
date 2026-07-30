@@ -8,6 +8,7 @@ import styles from './CharacterPanel.module.css'
 interface CharacterAvatarProps {
   appearance: CharacterAppearance
   className?: string
+  showReference?: boolean
 }
 
 const assetRoot = '/assets/character/front'
@@ -21,7 +22,7 @@ const layerStyle: React.CSSProperties = {
   width: '100%',
 }
 
-const CharacterAvatar: React.FC<CharacterAvatarProps> = ({ appearance, className }) => {
+const CharacterAvatar: React.FC<CharacterAvatarProps> = ({ appearance, className, showReference = false }) => {
   const skin = appearance.skinColor === '#E7B092' ? 'tan' : 'light'
   const eyes = appearance.eyes === 'gentle' || appearance.eyes === 'sleepy' ? 'gentle' : 'sparkle'
   const mouth = appearance.mouth === 'small' || appearance.mouth === 'neutral' ? 'small' : 'smile'
@@ -44,6 +45,22 @@ const CharacterAvatar: React.FC<CharacterAvatarProps> = ({ appearance, className
       role="img"
       aria-label="正面向きの水彩風キャラクター"
     >
+      {showReference && (
+        <Image
+          src="/assets/character/reference/female-body-sample.png"
+          alt=""
+          aria-hidden="true"
+          fill
+          sizes="100%"
+          unoptimized
+          style={{
+            ...layerStyle,
+            filter: 'hue-rotate(145deg) saturate(2.2)',
+            opacity: 0.52,
+            zIndex: 0,
+          }}
+        />
+      )}
       {layers.map(src => (
         <Image key={src} src={src} alt="" aria-hidden="true" fill sizes="100%" unoptimized style={layerStyle} />
       ))}

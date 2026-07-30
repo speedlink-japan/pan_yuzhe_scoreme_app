@@ -121,6 +121,7 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
   const [appearance, setAppearance] = useState<CharacterAppearance>(defaultCharacterAppearance)
   const [isAppearanceLoaded, setIsAppearanceLoaded] = useState(false)
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false)
+  const [showCharacterReference, setShowCharacterReference] = useState(false)
 
   const selectedOutfit = outfitOptions.find(option => option.id === character.outfit) || outfitOptions[0]
   const visibleItem = roomItems.find(item => item.id === activeItem) || roomItems[0]
@@ -209,6 +210,13 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
   React.useEffect(() => {
     setAppearance(loadCharacterAppearance())
     setIsAppearanceLoaded(true)
+  }, [])
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setShowCharacterReference(
+      process.env.NODE_ENV === 'development' && params.get('characterReference') === '1'
+    )
   }, [])
 
   React.useEffect(() => {
@@ -359,7 +367,11 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
               onClick={handleCharacterClick}
               aria-label={`${character.name}のセリフを見る`}
             >
-              <CharacterAvatar appearance={appearance} className={styles.roomCharacterAvatar} />
+              <CharacterAvatar
+                appearance={appearance}
+                className={styles.roomCharacterAvatar}
+                showReference={showCharacterReference}
+              />
             </button>
           </div>
           {!isRoomUiHidden && (
