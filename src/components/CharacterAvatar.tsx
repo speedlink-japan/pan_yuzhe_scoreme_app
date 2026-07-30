@@ -9,12 +9,15 @@ interface CharacterAvatarProps {
 }
 
 const hairShapes = {
+  twinLoop: 'M31 106 C22 48 53 18 100 18 C147 18 178 48 169 106 L151 155 L49 155 Z',
   short: 'M38 94 C32 48 56 23 100 23 C144 23 168 48 162 94 L147 112 L53 112 Z',
   bob: 'M31 106 C22 48 53 18 100 18 C147 18 178 48 169 106 L151 155 L49 155 Z',
   long: 'M29 105 C22 45 53 15 100 15 C147 15 178 45 171 105 L164 203 L36 203 Z',
 }
 
 const outfitColors: Record<CharacterAppearance['outfit'], string> = {
+  female: '#F7F5EF',
+  male: '#6C78B8',
   casual: '#8CCFC3',
   formal: '#6C78B8',
   sporty: '#F3B562',
@@ -25,6 +28,7 @@ const CharacterAvatar: React.FC<CharacterAvatarProps> = ({ appearance, className
   const faceWidth = appearance.face === 'round' ? 66 : appearance.face === 'oval' ? 57 : 62
   const faceHeight = appearance.face === 'round' ? 74 : appearance.face === 'oval' ? 84 : 79
   const outfitColor = appearance.outfitColor || outfitColors[appearance.outfit]
+  const isMaleOutfit = appearance.outfit === 'male' || appearance.outfit === 'formal'
 
   return (
     <svg
@@ -34,13 +38,30 @@ const CharacterAvatar: React.FC<CharacterAvatarProps> = ({ appearance, className
       aria-label="正面向きのキャラクター"
       preserveAspectRatio="xMidYMid meet"
     >
-      <path d="M42 239 C44 193 65 176 100 176 C135 176 156 193 158 239 Z" fill={outfitColor} />
-      {appearance.outfit === 'formal' && <path d="M83 181 L100 203 L117 181" fill="#F7F5EF" />}
-      {appearance.outfit === 'sporty' && <path d="M56 207 H144" stroke="#FFFFFF" strokeWidth="6" opacity="0.8" />}
-      {appearance.outfit === 'party' && <path d="M60 221 C82 207 118 207 140 221" fill="none" stroke="#FDE7F3" strokeWidth="5" />}
+      {isMaleOutfit ? (
+        <>
+          <path d="M42 239 C44 201 57 178 78 176 H122 C143 178 156 201 158 239 Z" fill={outfitColor} />
+          <path d="M82 178 H118 V217 H82 Z" fill="#F7F5EF" opacity="0.95" />
+          <path d="M100 181 V217" stroke="#B6C5D6" strokeWidth="2" />
+          <path d="M45 214 H155" stroke="#C28A54" strokeWidth="4" opacity="0.8" />
+        </>
+      ) : (
+        <>
+          <path d="M42 239 C44 193 65 176 100 176 C135 176 156 193 158 239 Z" fill={outfitColor} />
+          <path d="M60 221 C82 207 118 207 140 221" fill="none" stroke="#FFFFFF" strokeWidth="5" opacity="0.62" />
+        </>
+      )}
 
       <path d="M79 157 H121 V188 C112 196 88 196 79 188 Z" fill={appearance.skinColor} />
       <path d={hairShapes[appearance.hair]} fill={appearance.hairColor} />
+      {appearance.hair === 'twinLoop' && (
+        <>
+          <circle cx="30" cy="73" r="28" fill={appearance.hairColor} />
+          <circle cx="170" cy="73" r="28" fill={appearance.hairColor} />
+          <circle cx="30" cy="73" r="15" fill="#5E9693" opacity="0.5" />
+          <circle cx="170" cy="73" r="15" fill="#5E9693" opacity="0.5" />
+        </>
+      )}
 
       <ellipse cx="100" cy="107" rx={faceWidth} ry={faceHeight} fill={appearance.skinColor} />
       <path d="M36 103 C40 58 66 34 100 34 C134 34 160 58 164 103" fill="none" stroke={appearance.hairColor} strokeWidth="13" strokeLinecap="round" />

@@ -82,8 +82,8 @@ const LEGACY_CHARACTER_SPENT_STORAGE_KEY = 'myscore.character.purchase.spent.v1'
 const initialOwnedItems: ShopItemId[] = ['whiteSkirt', 'none']
 
 const appearanceByShopOutfit: Record<OutfitId, Pick<CharacterAppearance, 'outfit' | 'outfitColor'>> = {
-  whiteSkirt: { outfit: 'casual', outfitColor: '#F7F5EF' },
-  uniform: { outfit: 'formal', outfitColor: '#6C78B8' },
+  whiteSkirt: { outfit: 'female', outfitColor: '#F7F5EF' },
+  uniform: { outfit: 'male', outfitColor: '#6C78B8' },
 }
 
 const readTodoSession = (): TodoSession => {
@@ -462,7 +462,7 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
                 onClick={() => setIsCustomizerOpen(true)}
                 title="正面向きキャラクターの見た目を調整"
               >
-                見た目
+                キャラ作成
               </button>
               <button
                 type="button"

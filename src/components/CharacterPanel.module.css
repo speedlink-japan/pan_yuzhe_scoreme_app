@@ -548,7 +548,7 @@
 .customizerOptionGrid {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .customizerOption {
@@ -563,7 +563,7 @@
   font-size: 11px;
   gap: 4px;
   justify-content: center;
-  min-height: 68px;
+  min-height: 112px;
   text-transform: capitalize;
 }
 
@@ -574,19 +574,29 @@
   color: #A45478;
 }
 
-.optionPreview {
+.optionAvatarWrap {
   align-items: center;
-  color: #6B4A45;
   display: inline-flex;
-  font-size: 25px;
-  line-height: 1;
-  min-height: 26px;
+  height: 78px;
+  justify-content: center;
+  width: 78px;
+}
+
+.optionAvatar {
+  height: 78px;
+  width: 78px;
 }
 
 .paletteSections {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.paletteHint {
+  color: #8A969B;
+  font-size: 11px;
+  margin: 0;
 }
 
 .paletteSection {
