@@ -3,6 +3,8 @@
 import Image from 'next/image'
 import React, { useState } from 'react'
 import styles from './CharacterPanel.module.css'
+import CharacterAvatar from './CharacterAvatar'
+import CharacterCustomizerModal from './CharacterCustomizerModal'
 import {
   CharacterShopState,
   TODO_SESSION_STORAGE_KEY,
@@ -17,6 +19,12 @@ import {
   ROOM_ITEM_SCENES,
   ScenePlacement,
 } from '@/utils/meRoomScene'
+import {
+  defaultCharacterAppearance,
+  loadCharacterAppearance,
+  saveCharacterAppearance,
+  type CharacterAppearance,
+} from '@/utils/characterAppearance'
 
 type OutfitId = 'whiteSkirt' | 'uniform'
 type RoomItemId = 'none' | 'laptop'
@@ -73,6 +81,11 @@ const CHARACTER_SHOP_STORAGE_KEY = 'myscore.character.shop.v1'
 const LEGACY_CHARACTER_SPENT_STORAGE_KEY = 'myscore.character.purchase.spent.v1'
 const initialOwnedItems: ShopItemId[] = ['whiteSkirt', 'none']
 
+const appearanceByShopOutfit: Record<OutfitId, Pick<CharacterAppearance, 'outfit' | 'outfitColor'>> = {
+  whiteSkirt: { outfit: 'casual', outfitColor: '#F7F5EF' },
+  uniform: { outfit: 'formal', outfitColor: '#6C78B8' },
+}
+
 const readTodoSession = (): TodoSession => {
   if (typeof window === 'undefined') return normalizeTodoSession(null)
 
@@ -105,9 +118,16 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
   const [shopTab, setShopTab] = useState<ShopTab>('outfit')
   const [isRoomFullscreen, setIsRoomFullscreen] = useState(false)
   const [isRoomUiHidden, setIsRoomUiHidden] = useState(false)
+  const [appearance, setAppearance] = useState<CharacterAppearance>(defaultCharacterAppearance)
+  const [isAppearanceLoaded, setIsAppearanceLoaded] = useState(false)
+  const [isCustomizerOpen, setIsCustomizerOpen] = useState(false)
 
   const selectedOutfit = outfitOptions.find(option => option.id === character.outfit) || outfitOptions[0]
   const visibleItem = roomItems.find(item => item.id === activeItem) || roomItems[0]
+
+  const syncAppearanceToShop = React.useCallback((outfit: OutfitId) => {
+    setAppearance(prev => ({ ...prev, ...appearanceByShopOutfit[outfit] }))
+  }, [])
 
   const scenePlacementStyle = (placement: ScenePlacement): React.CSSProperties => ({
     left: `${placement.x}%`,
@@ -137,11 +157,12 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
     setCharacter(prev => ({ ...prev, outfit: savedShop.outfit as OutfitId }))
     setActiveItem(savedShop.activeItem as RoomItemId)
     setOwnedItems(savedShop.ownedItems as ShopItemId[])
+    syncAppearanceToShop(savedShop.outfit as OutfitId)
     window.dispatchEvent(
       new CustomEvent('todo-session-external-update', { detail: nextSession })
     )
     return true
-  }, [])
+  }, [syncAppearanceToShop])
 
   const selectShopItem = (
     id: ShopItemId,
@@ -184,6 +205,15 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
     setSpeechIndex(prev => (prev + 1) % sampleLines.length)
     setIsSpeechVisible(true)
   }
+
+  React.useEffect(() => {
+    setAppearance(loadCharacterAppearance())
+    setIsAppearanceLoaded(true)
+  }, [])
+
+  React.useEffect(() => {
+    if (isAppearanceLoaded) saveCharacterAppearance(appearance)
+  }, [appearance, isAppearanceLoaded])
 
   React.useEffect(() => {
     if (!isRoomFullscreen) return
@@ -249,8 +279,9 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
     setCharacter(prev => ({ ...prev, outfit: migratedShop.outfit as OutfitId }))
     setActiveItem(migratedShop.activeItem as RoomItemId)
     setOwnedItems(migratedShop.ownedItems as ShopItemId[])
+    syncAppearanceToShop(migratedShop.outfit as OutfitId)
     if (hasLegacyData) commitShopState(migratedShop)
-  }, [commitShopState])
+  }, [commitShopState, syncAppearanceToShop])
 
   React.useEffect(() => {
     const handleSessionUpdate = (event: Event) => {
@@ -259,6 +290,7 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
       setCharacter(prev => ({ ...prev, outfit: shop.outfit as OutfitId }))
       setActiveItem(shop.activeItem as RoomItemId)
       setOwnedItems(shop.ownedItems as ShopItemId[])
+      syncAppearanceToShop(shop.outfit as OutfitId)
     }
 
     window.addEventListener('todo-session-updated', handleSessionUpdate)
@@ -267,7 +299,14 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
       window.removeEventListener('todo-session-updated', handleSessionUpdate)
       window.removeEventListener('todo-session-external-update', handleSessionUpdate)
     }
-  }, [])
+  }, [syncAppearanceToShop])
+
+  const handleResetAppearance = () => {
+    setAppearance({
+      ...defaultCharacterAppearance,
+      ...appearanceByShopOutfit[character.outfit],
+    })
+  }
 
   return (
     <div className={styles.panel}>
@@ -320,13 +359,7 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
               onClick={handleCharacterClick}
               aria-label={`${character.name}のセリフを見る`}
             >
-              <Image
-                className={styles.miniCharacter}
-                src={selectedOutfit.image}
-                alt={character.name}
-                width={360}
-                height={440}
-              />
+              <CharacterAvatar appearance={appearance} className={styles.roomCharacterAvatar} />
             </button>
           </div>
           {!isRoomUiHidden && (
@@ -412,8 +445,25 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ availablePoints }) => {
             </div>
           )}
 
+          {isCustomizerOpen && (
+            <CharacterCustomizerModal
+              appearance={appearance}
+              onChange={setAppearance}
+              onClose={() => setIsCustomizerOpen(false)}
+              onReset={handleResetAppearance}
+            />
+          )}
+
           {!isRoomUiHidden ? (
             <div className={styles.roomActions} aria-label="部屋の操作">
+              <button
+                type="button"
+                className={styles.roomActionButton}
+                onClick={() => setIsCustomizerOpen(true)}
+                title="正面向きキャラクターの見た目を調整"
+              >
+                見た目
+              </button>
               <button
                 type="button"
                 className={styles.roomActionButton}
