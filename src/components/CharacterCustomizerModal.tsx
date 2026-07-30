@@ -128,14 +128,11 @@ const CharacterCustomizerModal: React.FC<CharacterCustomizerModalProps> = ({ app
 
     const paletteSections = [
       ['skinColor', '肌', characterMvpOptions.skinColors],
-      ['hairColor', '髪', characterMvpOptions.hairColors],
-      ['eyesColor', '目', characterMvpOptions.eyesColors],
-      ['outfitColor', '服', characterMvpOptions.outfitColors],
     ] as const
 
     return (
       <div className={styles.paletteSections}>
-        <p className={styles.paletteHint}>初回MVPは各パーツ2パターン</p>
+        <p className={styles.paletteHint}>肌色2種。髪・目・服は承認済みサンプル配色で統一</p>
         {paletteSections.map(([key, label, colors]) => (
           <div key={key} className={styles.paletteSection}>
             <span className={styles.paletteLabel}>{label}</span>

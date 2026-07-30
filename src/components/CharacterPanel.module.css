@@ -107,6 +107,13 @@
   width: 100%;
 }
 
+.rasterAvatar {
+  display: block;
+  height: 100%;
+  position: relative;
+  width: 100%;
+}
+
 .characterButton {
   background: transparent;
   border: 0;
