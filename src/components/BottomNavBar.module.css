@@ -175,3 +175,7 @@
   color: white;
   box-shadow: 0 4px 12px rgba(163, 228, 215, 0.5);
 }
+
+.review{background:rgba(255,205,220,.2);color:#b64d78}.review.active{background:linear-gradient(135deg,#ffb8cf,#ef7da6);color:#fff;box-shadow:0 4px 12px rgba(226,105,149,.35)}
+
+@media(max-width:600px){.navbar{padding:4px;gap:3px}.panelButtons{gap:2px;min-width:0}.navItem{width:40px;height:44px;flex:1}.controlButtons{gap:2px}.controlButton{width:31px;height:36px}.label{font-size:6px}.icon{font-size:16px}}

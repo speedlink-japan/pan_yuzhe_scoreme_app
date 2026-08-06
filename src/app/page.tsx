@@ -10,6 +10,7 @@ import StudyPanel from '@/components/StudyPanel'
 import CalendarPanel from '@/components/CalendarPanel'
 import NotebookPanel from '@/components/NotebookPanel'
 import CharacterPanel from '@/components/CharacterPanel'
+import ReviewPanel from '@/components/ReviewPanel'
 import PointManagementModal from '@/components/PointManagementModal'
 import { saveLayoutState, loadLayoutState } from '@/utils/layoutStorage'
 import {
@@ -32,7 +33,7 @@ import {
   saveRemoteTodoSession,
 } from '@/utils/todoSupabaseSync'
 
-type PanelType = 'todo' | 'study' | 'calendar' | 'notebook' | 'character'
+type PanelType = 'todo' | 'study' | 'calendar' | 'notebook' | 'review' | 'character'
 
 export interface PanelPosition {
   x: number
@@ -62,6 +63,7 @@ const defaultPositionsPC: Record<PanelType, PanelPosition> = {
   study: { x: 320, y: 160, width: 680, height: 360 },
   notebook: { x: 1020, y: 160, width: 280, height: 730 },
   character: { x: 320, y: 530, width: 680, height: 360 },
+  review: { x: 320, y: 160, width: 680, height: 730 },
 }
 
 // タブレット用デフォルトレイアウト (600-1024px)
@@ -71,6 +73,7 @@ const defaultPositionsTablet: Record<PanelType, PanelPosition> = {
   study: { x: 10, y: 570, width: 320, height: 300 },
   notebook: { x: 340, y: 570, width: 320, height: 300 },
   character: { x: 10, y: 880, width: 650, height: 280 },
+  review: { x: 10, y: 160, width: 650, height: 710 },
 }
 
 // モバイル用デフォルトレイアウト (600px以下)
@@ -80,6 +83,7 @@ const defaultPositionsMobile: Record<PanelType, PanelPosition> = {
   study: { x: 10, y: 880, width: 300, height: 280 },
   notebook: { x: 10, y: 1170, width: 300, height: 300 },
   character: { x: 10, y: 1480, width: 300, height: 250 },
+  review: { x: 10, y: 160, width: 300, height: 700 },
 }
 
 // 画面幅に応じてレイアウトを選択
@@ -101,6 +105,7 @@ const defaultZIndices: Record<PanelType, number> = {
   calendar: 12,
   notebook: 13,
   character: 14,
+  review: 15,
 }
 
 // 動的レイアウト計算：表示パネル数に応じて画面いっぱいに使用
@@ -118,6 +123,7 @@ const calculateDynamicLayout = (
     calendar: defaultPositionsPC.calendar,
     notebook: defaultPositionsPC.notebook,
     character: defaultPositionsPC.character,
+    review: defaultPositionsPC.review,
   }
 
   // フルスクリーンモード：表示パネルのみで画面全体を埋める
@@ -238,9 +244,9 @@ export default function Home() {
       const saved = loadLayoutState()
       if (saved) {
         setIsLockedState(saved.isLocked)
-        setPanelPositionsState(saved.panelPositions as Record<PanelType, PanelPosition>)
+        setPanelPositionsState({ ...getDefaultLayout(window.innerWidth), ...saved.panelPositions } as Record<PanelType, PanelPosition>)
         if (saved.panelZIndices) {
-          setPanelZIndicesState(saved.panelZIndices as Record<PanelType, number>)
+          setPanelZIndicesState({ ...defaultZIndices, ...saved.panelZIndices } as Record<PanelType, number>)
         }
       } else {
         const width = typeof window !== 'undefined' ? window.innerWidth : 1024
@@ -503,6 +509,19 @@ export default function Home() {
             <CharacterPanel
               availablePoints={totalPoints}
             />
+          </DraggablePanelWrapper>
+        )}
+
+        {visiblePanels.includes('review') && (
+          <DraggablePanelWrapper
+            initialState={displayedPanelPositions.review}
+            isLocked={isLocked}
+            zIndex={panelZIndices.review}
+            onPositionChange={(pos) => handlePositionChange('review', pos)}
+            onBringToFront={() => handleBringToFront('review')}
+            hideLayoutControls={layoutMode === 'fullscreen'}
+          >
+            <ReviewPanel />
           </DraggablePanelWrapper>
         )}
       </div>

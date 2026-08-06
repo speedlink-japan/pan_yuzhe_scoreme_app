@@ -13,6 +13,7 @@
   "include": [
     "src/utils/todoSession.ts",
     "src/utils/pointLedger.ts",
+    "src/utils/dailyReview.ts",
     "src/utils/todoHistoryRestore.ts",
     "tests/pointSystem.test.ts"
   ]

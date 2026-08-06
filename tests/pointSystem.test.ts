@@ -9,6 +9,7 @@ import {
   finalizeTodoDelivery,
   getAvailablePoints,
   getTodoMilestonePoints,
+  getTodoDateKey,
   getTodoPointHistory,
   getTodoProjectPoints,
   getTodoStepPoints,
@@ -21,10 +22,19 @@ import {
   calculateReadingPoints,
   getPointBalances,
   getPointLedgerByDate,
+  normalizeDailyReviews,
   normalizePointLedger,
+  toggleDailyReviewValue,
+  upsertDailyReview,
   updatePointLedgerEntries,
   upsertPointLedgerEntry,
 } from '../src/utils/pointLedger'
+import {
+  completeDailyReview,
+  getDailyReviewSummary,
+  getReviewOutcomesForDate,
+  saveDailyReviewDraft,
+} from '../src/utils/dailyReview'
 import {
   cloneTodoFromHistory,
   createTodoHistoryRedoPlan,
@@ -633,7 +643,7 @@ test('migration preserves user-edited ledger accounts and points on repeated nor
     'todo:single-archived': 40,
     'reading:book-edited': 30,
     'memo:memo-edited': 20,
-    'review:review-edited': 10,
+    'review:2026-07-23': 10,
     'migration:legacy-earned-balance': -5,
   }
   const edited = {
@@ -762,5 +772,102 @@ test('new session fields normalize and survive a JSON and Supabase-compatible ro
   assert.equal(roundTripped.taskPresets[0].categoryId, 'health')
   assert.equal(roundTripped.dailyReviews[0].awarded, true)
   assert.equal(roundTripped.pointLedger.filter(item => item.sourceId === 'review:2026-07-23').length, 1)
-  assert.equal(getPointLedgerByDate(roundTripped.pointLedger)['2026-07-23'].length, 2)
+  assert.equal(getPointLedgerByDate(roundTripped.pointLedger)['2026-07-23'].length, 1)
+})
+
+test('daily review normalization migrates legacy notes, deduplicates date and selections', () => {
+  const reviews = normalizeDailyReviews([
+    { id: 'legacy-a', date: '2026-07-23', note: 'よかった', completedAt: timestamp, awarded: true },
+    {
+      id: 'legacy-b', date: '2026-07-23', note: '', awarded: false,
+      hanamaruSourceIds: ['todo:a', 'todo:a', 'memo:b'],
+      selfEvaluationTags: ['よく頑張った', 'よく頑張った'],
+    },
+    { id: 'broken', date: 'not-a-date', note: 'fallback', awarded: false },
+    { id: 'broken-calendar', date: '2026-99-99', note: '', awarded: false },
+  ], '2026-07-25T10:00:00.000Z')
+  assert.equal(reviews.length, 2)
+  assert.equal(reviews[0].id, 'daily-review:2026-07-23')
+  assert.equal(reviews[0].goodThings, 'よかった')
+  assert.deepEqual(reviews[0].hanamaruSourceIds, ['todo:a', 'memo:b'])
+  assert.deepEqual(reviews[0].selfEvaluationTags, ['よく頑張った'])
+  assert.equal(reviews[0].awarded, true)
+  assert.equal(reviews[1].date, '2026-07-25')
+})
+
+test('daily review upsert is date-unique and toggles values without duplicates', () => {
+  const first = upsertDailyReview([], { date: '2026-07-24', goodThings: 'first' }, timestamp)
+  const second = upsertDailyReview(first, {
+    date: '2026-07-24',
+    goodThings: 'edited',
+    hanamaruSourceIds: toggleDailyReviewValue([], 'todo:one'),
+    selfEvaluationTags: toggleDailyReviewValue(['ちゃんと休めた'], 'ちゃんと休めた'),
+  }, timestamp)
+  assert.equal(second.length, 1)
+  assert.equal(second[0].goodThings, 'edited')
+  assert.deepEqual(second[0].hanamaruSourceIds, ['todo:one'])
+  assert.deepEqual(second[0].selfEvaluationTags, [])
+  assert.deepEqual(toggleDailyReviewValue(['todo:one'], 'todo:one'), [])
+})
+
+test('review outcomes aggregate todo, reading and memo once at the local date boundary', () => {
+  const localTimestamp = '2026-07-23T23:30:00-07:00'
+  const date = getTodoDateKey(localTimestamp)
+  const session = normalizeTodoSession({
+    todos: [{ type: 'single', data: { id: 'boundary', text: 'Boundary todo', difficulty: 'easy', completed: true, createdAt: timestamp, completedAt: localTimestamp } }],
+    archivedPointHistory: [{ id: 'single-boundary', title: 'Duplicate archive', type: 'single', points: 10, account: 'effort', sourceId: 'todo:single-boundary', completedAt: localTimestamp }],
+    pendingPointHistory: [],
+    studyBooks: [{ id: 'book-day', title: 'Book', category: 'bunko', pageCount: 10, createdAt: localTimestamp, points: 1, pointAccount: 'rest' }],
+    notebookMemos: [{ id: 'memo-day', title: 'Memo', content: 'memo', color: '#fff', createdAt: localTimestamp, points: 1, pointAccount: 'effort' }],
+  }, timestamp)
+  const outcomes = getReviewOutcomesForDate(session, date)
+  assert.equal(outcomes.filter(item => item.sourceId === 'todo:single-boundary').length, 1)
+  assert.deepEqual(outcomes.map(item => item.type).sort(), ['memo', 'reading', 'todo'])
+  assert.equal(getReviewOutcomesForDate(session, '2026-01-01').length, 0)
+})
+
+test('review draft saves without points and first completion awards only once', () => {
+  const session = normalizeTodoSession({ todos: [], pointLedger: [], dailyReviews: [] }, timestamp)
+  const draft = saveDailyReviewDraft(session, '2026-07-23', {
+    goodThings: 'draft', hanamaruSourceIds: ['todo:a'], selfEvaluationTags: ['よく頑張った'],
+  }, timestamp)
+  assert.equal(draft.pointLedger.filter(item => item.sourceType === 'review').length, 0)
+  const completed = completeDailyReview(draft, '2026-07-23', {}, timestamp)
+  const savedAgain = completeDailyReview(completed, '2026-07-23', { tomorrowNote: 'edited' }, '2026-07-23T12:00:00.000Z')
+  assert.equal(savedAgain.dailyReviews.length, 1)
+  assert.equal(savedAgain.dailyReviews[0].tomorrowNote, 'edited')
+  assert.equal(savedAgain.pointLedger.filter(item => item.sourceId === 'review:2026-07-23').length, 1)
+  assert.equal(savedAgain.pointLedger.find(item => item.sourceId === 'review:2026-07-23')?.points, 3)
+  assert.equal(getDailyReviewSummary(savedAgain, '2026-07-23').total, 3)
+})
+
+test('review completion supports zero points, rest account and an empty past day', () => {
+  const session = normalizeTodoSession({
+    todos: [], pointRules: { ...DEFAULT_POINT_RULES, reviewAccount: 'rest', reviewPoints: 0 },
+  }, timestamp)
+  const completed = completeDailyReview(session, '2026-06-01', {}, timestamp)
+  const award = completed.pointLedger.find(item => item.sourceId === 'review:2026-06-01')
+  assert.equal(award?.account, 'rest')
+  assert.equal(award?.points, 0)
+  assert.equal(completed.dailyReviews[0].awarded, true)
+  assert.deepEqual(getDailyReviewSummary(completed, '2026-06-01').todoCount, 0)
+  assert.equal(getDailyReviewSummary(completed, '2026-06-01').rest, 0)
+})
+
+test('an existing edited review ledger is preserved on completion and reload', () => {
+  const session = normalizeTodoSession({
+    todos: [],
+    pointRules: { ...DEFAULT_POINT_RULES, reviewAccount: 'effort', reviewPoints: 3 },
+    pointLedger: [{
+      id: 'edited-review', sourceType: 'review', sourceId: 'review:2026-07-23', title: 'Edited',
+      account: 'rest', points: 12, occurredAt: timestamp,
+    }],
+    dailyReviews: [{ id: 'old', date: '2026-07-23', note: '', awarded: false }],
+  }, timestamp)
+  const completed = completeDailyReview(session, '2026-07-23', {}, timestamp)
+  const reloaded = normalizeTodoSession(JSON.parse(JSON.stringify(completed)), timestamp)
+  const awards = reloaded.pointLedger.filter(item => item.sourceType === 'review')
+  assert.equal(awards.length, 1)
+  assert.equal(awards[0].account, 'rest')
+  assert.equal(awards[0].points, 12)
 })

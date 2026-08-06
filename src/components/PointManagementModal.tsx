@@ -60,6 +60,8 @@ export default function PointManagementModal({ onClose }: { onClose: () => void 
     readingCategories.map(category => [category, String(initialReadingMemoRules.readingPagesPerPoint[category])])
   ) as Record<StudyCategory, string>)
   const [memoCharacters, setMemoCharacters] = useState(String(initialReadingMemoRules.memoCharactersPerPoint))
+  const [reviewAccount, setReviewAccount] = useState<PointAccount>(initialReadingMemoRules.reviewAccount)
+  const [reviewPoints, setReviewPoints] = useState(String(initialReadingMemoRules.reviewPoints))
 
   const balances = getPointBalances(session.pointLedger)
   const filteredLedger = useMemo(() => session.pointLedger
@@ -143,6 +145,15 @@ export default function PointManagementModal({ onClose }: { onClose: () => void 
     },
   })
 
+  const saveReviewRules = () => {
+    const points = Number(reviewPoints)
+    if (!Number.isInteger(points) || points < 0) return
+    commit({
+      ...session,
+      pointRules: { ...session.pointRules, reviewAccount, reviewPoints: points },
+    })
+  }
+
   return (
     <div className={styles.backdrop} role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className={styles.modal} role="dialog" aria-modal="true" aria-label="ポイント管理">
@@ -200,6 +211,16 @@ export default function PointManagementModal({ onClose }: { onClose: () => void 
               <label>メモ<span>1ptまで</span><input aria-label="メモの1ptまでの文字数" type="number" min="1" step="1" value={memoCharacters} onChange={e => setMemoCharacters(e.target.value)} /><span>文字</span></label>
             </div>
             <button className={styles.saveRulesButton} onClick={saveReadingMemoRules}>読書・メモルールを保存</button>
+          </section>
+
+          <section>
+            <h3>見直しルール</h3>
+            <p className={styles.ruleNote}>変更は今後初めて完了する日の見直しだけに反映される。過去の見直し口座・ポイントを変える場合は「獲得履歴」の一括変更を使う。</p>
+            <div className={styles.reviewRules}>
+              <label>既定口座<select value={reviewAccount} onChange={e => setReviewAccount(e.target.value as PointAccount)}><option value="effort">頑張り</option><option value="rest">休憩</option></select></label>
+              <label>初回完了ポイント<input aria-label="見直しの初回完了ポイント" type="number" min="0" step="1" value={reviewPoints} onChange={e => setReviewPoints(e.target.value)} /><span>pt</span></label>
+            </div>
+            <button className={styles.saveRulesButton} disabled={!Number.isInteger(Number(reviewPoints)) || Number(reviewPoints) < 0} onClick={saveReviewRules}>見直しルールを保存</button>
           </section>
         </div>
       </section>

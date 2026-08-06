@@ -669,14 +669,18 @@ const migrateLegacyPointLedger = (
   })
 
   dailyReviews.filter(review => review.awarded).forEach(review => {
+    const hasExistingReviewAward = migrated.some(item =>
+      item.sourceType === 'review' && item.sourceId === `review:${review.date}`
+    )
+    if (hasExistingReviewAward) return
     addIfMissing({
-      id: `ledger-review-${review.id}`,
+      id: `ledger-review-${review.date}`,
       sourceType: 'review',
-      sourceId: `review:${review.id}`,
+      sourceId: `review:${review.date}`,
       title: `${review.date}の見直し`,
       account: pointRules.reviewAccount,
       points: pointRules.reviewPoints,
-      occurredAt: review.completedAt,
+      occurredAt: review.completedAt ?? review.updatedAt ?? fallbackDate,
       reason: '日次見直し',
     })
   })

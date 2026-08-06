@@ -51,7 +51,12 @@ export interface DailyReview {
   id: string
   date: string
   note: string
-  completedAt: string
+  hanamaruSourceIds?: string[]
+  selfEvaluationTags?: string[]
+  goodThings?: string
+  tomorrowNote?: string
+  updatedAt?: string
+  completedAt?: string
   awarded: boolean
 }
 
@@ -322,17 +327,92 @@ export const normalizeDailyReviews = (
 ): DailyReview[] => {
   if (!Array.isArray(value)) return []
   return value.reduce<DailyReview[]>((items, item) => {
-    if (typeof item.id !== 'string') return items
-    items.push({
-      id: item.id,
-      date: typeof item.date === 'string' ? item.date : fallbackDate.slice(0, 10),
-      note: typeof item.note === 'string' ? item.note : '',
-      completedAt:
-        typeof item.completedAt === 'string' && item.completedAt.length > 0
-          ? item.completedAt
-          : fallbackDate,
+    const fallbackDateKey = fallbackDate.slice(0, 10)
+    const rawDate = typeof item.date === 'string' ? item.date : ''
+    const [year, month, day] = rawDate.split('-').map(Number)
+    const parsedDate = new Date(Date.UTC(year, month - 1, day))
+    const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate) &&
+      parsedDate.getUTCFullYear() === year &&
+      parsedDate.getUTCMonth() === month - 1 &&
+      parsedDate.getUTCDate() === day
+    const date = isValidDate ? rawDate : fallbackDateKey
+    const note = typeof item.note === 'string' ? item.note : ''
+    const completedAt = typeof item.completedAt === 'string' && item.completedAt.length > 0
+      ? item.completedAt
+      : undefined
+    const normalized: DailyReview = {
+      id: `daily-review:${date}`,
+      date,
+      note,
+      hanamaruSourceIds: Array.from(new Set(
+        Array.isArray(item.hanamaruSourceIds)
+          ? item.hanamaruSourceIds.filter(id => typeof id === 'string' && id.length > 0)
+          : []
+      )),
+      selfEvaluationTags: Array.from(new Set(
+        Array.isArray(item.selfEvaluationTags)
+          ? item.selfEvaluationTags.filter(tag => typeof tag === 'string' && tag.length > 0)
+          : []
+      )),
+      goodThings: typeof item.goodThings === 'string' ? item.goodThings : note,
+      tomorrowNote: typeof item.tomorrowNote === 'string' ? item.tomorrowNote : '',
+      updatedAt: typeof item.updatedAt === 'string' && item.updatedAt.length > 0
+        ? item.updatedAt
+        : completedAt ?? fallbackDate,
+      completedAt,
       awarded: Boolean(item.awarded),
-    })
-    return items
+    }
+    const existingIndex = items.findIndex(review => review.date === date)
+    if (existingIndex < 0) return [...items, normalized]
+
+    const existing = items[existingIndex]
+    const merged: DailyReview = {
+      ...existing,
+      ...normalized,
+      hanamaruSourceIds: Array.from(new Set([
+        ...(existing.hanamaruSourceIds ?? []),
+        ...(normalized.hanamaruSourceIds ?? []),
+      ])),
+      selfEvaluationTags: Array.from(new Set([
+        ...(existing.selfEvaluationTags ?? []),
+        ...(normalized.selfEvaluationTags ?? []),
+      ])),
+      goodThings: normalized.goodThings || existing.goodThings || '',
+      tomorrowNote: normalized.tomorrowNote || existing.tomorrowNote || '',
+      completedAt: normalized.completedAt ?? existing.completedAt,
+      awarded: existing.awarded || normalized.awarded,
+    }
+    return items.map((review, index) => index === existingIndex ? merged : review)
   }, [])
 }
+
+export const createDailyReviewDraft = (date: string, updatedAt: string): DailyReview => ({
+  id: `daily-review:${date}`,
+  date,
+  note: '',
+  hanamaruSourceIds: [],
+  selfEvaluationTags: [],
+  goodThings: '',
+  tomorrowNote: '',
+  updatedAt,
+  awarded: false,
+})
+
+export const upsertDailyReview = (
+  reviews: DailyReview[],
+  review: Partial<DailyReview> & { date: string },
+  updatedAt = new Date().toISOString()
+): DailyReview[] => {
+  const existing = reviews.find(item => item.date === review.date)
+  const next = normalizeDailyReviews([{
+    ...(existing ?? createDailyReviewDraft(review.date, updatedAt)),
+    ...review,
+    id: `daily-review:${review.date}`,
+    updatedAt,
+  }], updatedAt)[0]
+  return [...reviews.filter(item => item.date !== next.date), next]
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
+export const toggleDailyReviewValue = (values: string[], value: string): string[] =>
+  values.includes(value) ? values.filter(item => item !== value) : [...values, value]

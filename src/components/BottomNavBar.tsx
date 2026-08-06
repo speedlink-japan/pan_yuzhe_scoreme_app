@@ -3,7 +3,7 @@
 import React from 'react'
 import styles from './BottomNavBar.module.css'
 
-type PanelType = 'todo' | 'study' | 'calendar' | 'notebook' | 'character'
+type PanelType = 'todo' | 'study' | 'calendar' | 'notebook' | 'review' | 'character'
 
 interface BottomNavBarProps {
   visiblePanels: PanelType[]
@@ -29,6 +29,7 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({
     { id: 'study', label: 'Study', icon: '📚' },
     { id: 'calendar', label: 'Calendar', icon: '📅' },
     { id: 'notebook', label: 'Notebook', icon: '📝' },
+    { id: 'review', label: '見直し', icon: '🌸' },
     { id: 'character', label: 'Me', icon: '🏠' },
   ]
 
