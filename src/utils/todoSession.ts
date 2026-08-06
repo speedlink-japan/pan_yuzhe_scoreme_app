@@ -569,8 +569,17 @@ const migrateLegacyPointLedger = (
 ): PointLedgerEntry[] => {
   let migrated = ledger
 
+  const addIfMissing = (entry: Partial<PointLedgerEntry>) => {
+    if (
+      typeof entry.sourceId === 'string' &&
+      !migrated.some(item => item.sourceId === entry.sourceId)
+    ) {
+      migrated = upsertPointLedgerEntry(migrated, entry, fallbackDate)
+    }
+  }
+
   archivedPointHistory.forEach(item => {
-    migrated = upsertPointLedgerEntry(migrated, {
+    addIfMissing({
       id: `ledger-todo-${item.id}`,
       sourceType: 'todo',
       sourceId: `todo:${item.id}`,
@@ -579,32 +588,26 @@ const migrateLegacyPointLedger = (
       points: item.points,
       occurredAt: item.completedAt,
       reason: '旧Todo履歴から移行',
-    }, fallbackDate)
+    })
   })
 
   const archivedPoints = archivedPointHistory.reduce((total, item) => total + item.points, 0)
   const legacyBalance = earnedPoints - archivedPoints
-  const existingLegacyBalance = migrated.find(
-    item => item.sourceId === 'migration:legacy-earned-balance'
-  )
-  if (
-    legacyBalance !== 0 ||
-    existingLegacyBalance
-  ) {
-    migrated = upsertPointLedgerEntry(migrated, {
+  if (legacyBalance !== 0) {
+    addIfMissing({
       id: 'ledger-legacy-earned-balance',
       sourceType: 'manual-adjustment',
       sourceId: 'migration:legacy-earned-balance',
       title: '既存Todoポイント残高',
       account: pointRules.todoAccount,
       points: legacyBalance,
-      occurredAt: existingLegacyBalance?.occurredAt ?? fallbackDate,
+      occurredAt: fallbackDate,
       reason: '既存のearnedPoints合計を維持するための移行差分',
-    }, fallbackDate)
+    })
   }
 
   studyBooks.forEach(book => {
-    migrated = upsertPointLedgerEntry(migrated, {
+    addIfMissing({
       id: `ledger-reading-${book.id}`,
       sourceType: 'reading',
       sourceId: `reading:${book.id}`,
@@ -613,11 +616,11 @@ const migrateLegacyPointLedger = (
       points: book.points,
       occurredAt: book.createdAt,
       reason: '読書記録',
-    }, fallbackDate)
+    })
   })
 
   notebookMemos.forEach(memo => {
-    migrated = upsertPointLedgerEntry(migrated, {
+    addIfMissing({
       id: `ledger-memo-${memo.id}`,
       sourceType: 'memo',
       sourceId: `memo:${memo.id}`,
@@ -626,11 +629,11 @@ const migrateLegacyPointLedger = (
       points: memo.points,
       occurredAt: memo.createdAt,
       reason: 'メモ記録',
-    }, fallbackDate)
+    })
   })
 
   dailyReviews.filter(review => review.awarded).forEach(review => {
-    migrated = upsertPointLedgerEntry(migrated, {
+    addIfMissing({
       id: `ledger-review-${review.id}`,
       sourceType: 'review',
       sourceId: `review:${review.id}`,
@@ -639,7 +642,7 @@ const migrateLegacyPointLedger = (
       points: pointRules.reviewPoints,
       occurredAt: review.completedAt,
       reason: '日次見直し',
-    }, fallbackDate)
+    })
   })
 
   return migrated

@@ -356,6 +356,144 @@ test('legacy migration preserves points and repeated normalization does not incr
   ])
 })
 
+test('migration preserves user-edited ledger accounts and points on repeated normalization', () => {
+  const migrated = normalizeTodoSession({
+    todos: [],
+    earnedPoints: 10,
+    archivedPointHistory: [{
+      id: 'single-archived',
+      title: 'Archived todo',
+      type: 'single',
+      points: 4,
+      completedAt: timestamp,
+    }],
+    pendingPointHistory: [],
+    hiddenPointHistoryIds: [],
+    studyBooks: [{
+      id: 'book-edited',
+      title: 'Book',
+      category: 'paper',
+      pageCount: 4,
+      createdAt: timestamp,
+      points: 2,
+    }],
+    notebookMemos: [{
+      id: 'memo-edited',
+      title: 'Memo',
+      content: 'x'.repeat(100),
+      color: '#fff',
+      createdAt: timestamp,
+      points: 1,
+    }],
+    characterShop: {
+      spentPoints: 0,
+      outfit: 'whiteSkirt',
+      activeItem: 'none',
+      ownedItems: ['whiteSkirt', 'none'],
+    },
+    pointRules: DEFAULT_POINT_RULES,
+    dailyReviews: [{
+      id: 'review-edited',
+      date: '2026-07-23',
+      note: 'Review',
+      completedAt: timestamp,
+      awarded: true,
+    }],
+  }, timestamp)
+  const editedPointsBySourceId: Record<string, number> = {
+    'todo:single-archived': 40,
+    'reading:book-edited': 30,
+    'memo:memo-edited': 20,
+    'review:review-edited': 10,
+    'migration:legacy-earned-balance': -5,
+  }
+  const edited = {
+    ...migrated,
+    pointLedger: migrated.pointLedger.map(entry => ({
+      ...entry,
+      account: 'rest' as const,
+      points: editedPointsBySourceId[entry.sourceId],
+    })),
+  }
+
+  const normalizedAgain = normalizeTodoSession(edited, timestamp)
+
+  assert.equal(normalizedAgain.pointLedger.length, migrated.pointLedger.length)
+  assert.deepEqual(getPointBalances(normalizedAgain.pointLedger), {
+    effort: 0,
+    rest: 95,
+    total: 95,
+  })
+  normalizedAgain.pointLedger.forEach(entry => {
+    assert.equal(entry.account, 'rest')
+    assert.equal(entry.points, editedPointsBySourceId[entry.sourceId])
+  })
+
+  const afterNewSources = normalizeTodoSession({
+    ...normalizedAgain,
+    earnedPoints: 15,
+    archivedPointHistory: [
+      ...normalizedAgain.archivedPointHistory,
+      {
+        id: 'single-new',
+        title: 'New todo',
+        type: 'single',
+        points: 5,
+        completedAt: timestamp,
+      },
+    ],
+    studyBooks: [
+      ...normalizedAgain.studyBooks,
+      {
+        id: 'book-new',
+        title: 'New book',
+        category: 'paper',
+        pageCount: 4,
+        createdAt: timestamp,
+        points: 2,
+      },
+    ],
+    notebookMemos: [
+      ...normalizedAgain.notebookMemos,
+      {
+        id: 'memo-new',
+        title: 'New memo',
+        content: 'y'.repeat(100),
+        color: '#fff',
+        createdAt: timestamp,
+        points: 1,
+      },
+    ],
+    dailyReviews: [
+      ...normalizedAgain.dailyReviews,
+      {
+        id: 'review-new',
+        date: '2026-07-24',
+        note: 'New review',
+        completedAt: timestamp,
+        awarded: true,
+      },
+    ],
+  }, timestamp)
+
+  assert.equal(afterNewSources.pointLedger.length, normalizedAgain.pointLedger.length + 4)
+  assert.equal(
+    afterNewSources.pointLedger.find(
+      entry => entry.sourceId === 'migration:legacy-earned-balance'
+    )?.points,
+    -5
+  )
+  assert.equal(
+    afterNewSources.pointLedger.find(entry => entry.sourceId === 'todo:single-new')?.points,
+    5
+  )
+  assert.deepEqual(getPointBalances(afterNewSources.pointLedger), {
+    effort: 11,
+    rest: 95,
+    total: 106,
+  })
+})
+
 test('new session fields normalize and survive a JSON and Supabase-compatible round trip', () => {
   const session = normalizeTodoSession({
     todos: [],
