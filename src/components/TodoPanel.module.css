@@ -205,6 +205,8 @@
   font-weight: bold;
 }
 
+.accountTag { font-size:10px; color:#287f70; background:#e8f7f2; padding:3px 6px; border-radius:999px; white-space:nowrap; }
+
 .deleteBtn {
   width: 24px;
   height: 24px;
@@ -293,6 +295,13 @@
   font-size: 15px;
   line-height: 1.35;
 }
+
+.sectionHeading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.sectionHeading h3 { margin:0; }
+.linkButton { border:0; background:transparent; color:#d84f89; text-decoration:underline; cursor:pointer; font-size:12px; }
+.presetList { display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; }
+.presetButton,.secondaryBtn { border:1px solid #ffb6d9; background:#fff; color:#d84f89; border-radius:7px; padding:8px 10px; cursor:pointer; font-weight:bold; }
+.secondaryBtn { width:100%; }
 
 .sectionHelp {
   margin: 0 0 12px 0;

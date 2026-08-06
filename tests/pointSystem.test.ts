@@ -5,12 +5,15 @@ import {
   SingleTask,
   TodoItem,
   TodoPointHistoryItem,
+  createSingleTaskFromPreset,
+  finalizeTodoDelivery,
   getAvailablePoints,
   getTodoMilestonePoints,
   getTodoPointHistory,
   getTodoProjectPoints,
   getTodoStepPoints,
   normalizeTodoSession,
+  resolveTodoReward,
 } from '../src/utils/todoSession'
 import {
   DEFAULT_POINT_RULES,
@@ -19,6 +22,7 @@ import {
   getPointBalances,
   getPointLedgerByDate,
   normalizePointLedger,
+  updatePointLedgerEntries,
   upsertPointLedgerEntry,
 } from '../src/utils/pointLedger'
 import {
@@ -82,7 +86,7 @@ const getTodoMaximumReward = (todo: TodoItem): number => {
   )
 }
 
-test('pending points are deduplicated, validated and recalculated from the checked task', () => {
+test('pending points are deduplicated and preserve the reward fixed when checked', () => {
   const todo: TodoItem = {
     type: 'single',
     data: {
@@ -98,7 +102,9 @@ test('pending points are deduplicated, validated and recalculated from the check
     id: 'single-task-1',
     title: 'tampered',
     type: 'single',
-    points: 999,
+    points: 17,
+    account: 'rest',
+    sourceId: 'todo:single-task-1',
     completedAt: timestamp,
   }
 
@@ -112,8 +118,92 @@ test('pending points are deduplicated, validated and recalculated from the check
 
   assert.equal(session.pendingPointHistory.length, 1)
   assert.equal(session.pendingPointHistory[0].id, 'single-task-1')
-  assert.equal(session.pendingPointHistory[0].points, 10)
+  assert.equal(session.pendingPointHistory[0].points, 17)
+  assert.equal(session.pendingPointHistory[0].account, 'rest')
+  assert.equal(session.pendingPointHistory[0].sourceId, 'todo:single-task-1')
   assert.equal(session.pendingPointHistory[0].title, 'Checked task')
+})
+
+test('todo reward priority is override, category, Todo default, then effort', () => {
+  const rules = { ...DEFAULT_POINT_RULES, todoAccount: 'rest' as const }
+  const categories = [{ id: 'routine', name: '日課', account: 'effort' as const, points: 12 }]
+  const base: TodoItem = {
+    type: 'single',
+    data: { id: 'priority', text: 'Priority', difficulty: 'hard', completed: false, createdAt: timestamp },
+  }
+
+  assert.deepEqual(resolveTodoReward(base, [], rules), { account: 'rest', points: 50 })
+  assert.deepEqual(resolveTodoReward({ ...base, data: { ...base.data, categoryId: 'routine' } } as TodoItem, categories, rules), { account: 'effort', points: 12 })
+  assert.deepEqual(resolveTodoReward({ ...base, data: { ...base.data, categoryId: 'routine', pointAccount: 'rest', pointOverride: 7 } } as TodoItem, categories, rules), { account: 'rest', points: 7 })
+  assert.equal(resolveTodoReward(base, [], { ...DEFAULT_POINT_RULES, todoAccount: undefined as never }).account, 'effort')
+})
+
+test('preset reuse creates unique incomplete tasks without mutating the preset', () => {
+  const preset = { id: 'preset-1', title: 'ピアノ', difficulty: 'easy' as const, categoryId: 'music' }
+  const first = createSingleTaskFromPreset(preset, timestamp, 'task-a')
+  const second = createSingleTaskFromPreset(preset, timestamp, 'task-b')
+  assert.notEqual(first.data.id, second.data.id)
+  assert.equal((first.data as SingleTask).completed, false)
+  assert.equal((second.data as SingleTask).completedAt, undefined)
+  assert.equal(preset.id, 'preset-1')
+})
+
+test('single and every project award use the resolved Todo account', () => {
+  const single: TodoItem = {
+    type: 'single',
+    data: { id: 'single-rest', text: 'Rest task', difficulty: 'easy', completed: true, createdAt: timestamp, completedAt: timestamp, pointAccount: 'rest' },
+  }
+  const project = createCompletedProject()
+  project.data = { ...project.data, pointAccount: 'rest', pointOverride: 21 } as Project
+  const history = getTodoPointHistory([single, project], [], [], [], DEFAULT_POINT_RULES)
+  assert.equal(history.find(item => item.type === 'single')?.account, 'rest')
+  assert.deepEqual(new Set(history.filter(item => item.id.includes('project-1')).map(item => item.account)), new Set(['rest']))
+  assert.equal(history.find(item => item.type === 'project')?.points, 21)
+  assert.equal(history.find(item => item.type === 'project-step')?.points, 8)
+  assert.equal(history.find(item => item.type === 'milestone')?.points, 10)
+})
+
+test('legacy pending without account resolves through category and keeps its checked points', () => {
+  const session = normalizeTodoSession({
+    todos: [{ type: 'single', data: { id: 'legacy-pending', text: 'Legacy', difficulty: 'hard', completed: true, createdAt: timestamp, completedAt: timestamp, categoryId: 'routine' } }],
+    pendingPointHistory: [{ id: 'single-legacy-pending', title: 'Legacy', type: 'single', points: 13, completedAt: timestamp }],
+    taskCategories: [{ id: 'routine', name: '日課', account: 'rest', points: 30 }],
+    pointRules: DEFAULT_POINT_RULES,
+  }, timestamp)
+  assert.equal(session.pendingPointHistory[0].account, 'rest')
+  assert.equal(session.pendingPointHistory[0].points, 13)
+})
+
+test('delivery archives and ledgers the checked snapshot after rules change', () => {
+  const checked = normalizeTodoSession({
+    todos: [{ type: 'single', data: { id: 'frozen', text: 'Frozen', difficulty: 'easy', completed: true, createdAt: timestamp, completedAt: timestamp } }],
+    pendingPointHistory: [{ id: 'single-frozen', title: 'Frozen', type: 'single', points: 14, account: 'rest', sourceId: 'todo:single-frozen', completedAt: timestamp }],
+    pointRules: { ...DEFAULT_POINT_RULES, todoAccount: 'effort' },
+    pointLedger: [],
+    earnedPoints: 3,
+  }, timestamp)
+  const changedRules = { ...checked, pointRules: { ...checked.pointRules, todoAccount: 'effort' as const } }
+  const delivered = finalizeTodoDelivery(changedRules, [])
+  assert.equal(delivered.earnedPoints, 17)
+  assert.equal(delivered.archivedPointHistory[0].points, 14)
+  assert.equal(delivered.archivedPointHistory[0].account, 'rest')
+  assert.deepEqual(delivered.pointLedger.find(entry => entry.sourceId === 'todo:single-frozen'), {
+    id: 'ledger-single-frozen', sourceType: 'todo', sourceId: 'todo:single-frozen', title: 'Frozen', account: 'rest', points: 14, occurredAt: timestamp, reason: 'Todo納品',
+  })
+  assert.equal(delivered.pendingPointHistory.length, 0)
+})
+
+test('bulk ledger edits survive normalization and clamp negatives by source type', () => {
+  const ledger = normalizePointLedger([
+    { id: 'todo-edit', sourceType: 'todo', sourceId: 'todo:edit', title: 'Todo', account: 'effort', points: 4, occurredAt: timestamp },
+    { id: 'manual-edit', sourceType: 'manual-adjustment', sourceId: 'manual:edit', title: 'Manual', account: 'effort', points: 1, occurredAt: timestamp, reason: '調整' },
+  ], timestamp)
+  const edited = updatePointLedgerEntries(ledger, ['todo-edit', 'manual-edit'], { account: 'rest', points: -6 })
+  const normalized = normalizePointLedger(edited, timestamp)
+  assert.deepEqual(normalized.map(entry => [entry.id, entry.account, entry.points]), [
+    ['todo-edit', 'rest', 0],
+    ['manual-edit', 'rest', -6],
+  ])
 })
 
 test('step redo subtracts and restores exactly the step reward', () => {

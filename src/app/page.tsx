@@ -10,12 +10,14 @@ import StudyPanel from '@/components/StudyPanel'
 import CalendarPanel from '@/components/CalendarPanel'
 import NotebookPanel from '@/components/NotebookPanel'
 import CharacterPanel from '@/components/CharacterPanel'
+import PointManagementModal from '@/components/PointManagementModal'
 import { saveLayoutState, loadLayoutState } from '@/utils/layoutStorage'
 import {
   TODO_SESSION_STORAGE_KEY,
   TodoSession,
   getNotebookPoints,
   getStudyPoints,
+  getAvailablePoints,
   normalizeTodoSession,
 } from '@/utils/todoSession'
 import {
@@ -218,7 +220,7 @@ export default function Home() {
   const [todoPoints, setTodoPoints] = useState(0)
   const [studyPoints, setStudyPoints] = useState(0)
   const [notebookPoints, setNotebookPoints] = useState(0)
-  const [characterSpentPoints, setCharacterSpentPoints] = useState(0)
+  const [availablePoints, setAvailablePoints] = useState(0)
   const [isLocked, setIsLockedState] = useState(false)
   const [panelPositions, setPanelPositionsState] = useState<Record<PanelType, PanelPosition>>(defaultPositions)
   const [fullscreenPanelPositions, setFullscreenPanelPositions] = useState<Record<PanelType, PanelPosition>>(defaultPositions)
@@ -226,6 +228,7 @@ export default function Home() {
   const [isHydrated, setIsHydrated] = useState(false)
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('normal')
   const [calendarSummaryRequestKey, setCalendarSummaryRequestKey] = useState(0)
+  const [isPointManagementOpen, setIsPointManagementOpen] = useState(false)
 
   // 初期化：ストレージからレイアウト状態を復元 & ウィンドウサイズ監視
   useEffect(() => {
@@ -250,11 +253,17 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    const open = () => setIsPointManagementOpen(true)
+    window.addEventListener('open-point-management', open)
+    return () => window.removeEventListener('open-point-management', open)
+  }, [])
+
+  useEffect(() => {
     const applySessionPoints = (session: TodoSession) => {
       setTodoPoints(session.earnedPoints)
       setStudyPoints(getStudyPoints(session.studyBooks))
       setNotebookPoints(getNotebookPoints(session.notebookMemos))
-      setCharacterSpentPoints(session.characterShop.spentPoints)
+      setAvailablePoints(getAvailablePoints(session))
     }
 
     const syncFromStorage = () => applySessionPoints(readTodoSession())
@@ -413,8 +422,7 @@ export default function Home() {
     setLayoutMode('normal') // リセット時は通常モードに戻す
   }
 
-  const earnedTotalPoints = todoPoints + studyPoints + notebookPoints
-  const totalPoints = earnedTotalPoints - characterSpentPoints
+  const totalPoints = availablePoints
   const displayedPanelPositions = layoutMode === 'fullscreen' ? fullscreenPanelPositions : panelPositions
 
   return (
@@ -425,7 +433,10 @@ export default function Home() {
         studyPoints={studyPoints}
         notebookPoints={notebookPoints}
         onTotalClick={openCalendarSummary}
+        onManagePoints={() => setIsPointManagementOpen(true)}
       />
+
+      {isPointManagementOpen && <PointManagementModal onClose={() => setIsPointManagementOpen(false)} />}
 
       <div className={styles.dashboardContainer}>
         {visiblePanels.includes('todo') && (

@@ -1,5 +1,6 @@
 import {
   DailyReview,
+  PointAccount,
   PointLedgerEntry,
   PointRules,
   ReadingCategory,
@@ -55,6 +56,9 @@ export interface Project {
   createdAt: string
   completedAt?: string
   bonusPoints?: number
+  categoryId?: string
+  pointAccount?: PointAccount
+  pointOverride?: number
 }
 
 export interface SingleTask {
@@ -64,6 +68,9 @@ export interface SingleTask {
   completed: boolean
   createdAt: string
   completedAt?: string
+  categoryId?: string
+  pointAccount?: PointAccount
+  pointOverride?: number
 }
 
 export interface TodoItem {
@@ -127,6 +134,8 @@ export interface TodoPointHistoryItem {
   type: 'single' | 'project-step' | 'milestone' | 'project'
   points: number
   completedAt: string
+  account?: PointAccount
+  sourceId?: string
   sourceTodo?: TodoItem
   sourceMilestoneId?: string
   sourceStepId?: string
@@ -315,6 +324,9 @@ const normalizeNonNegativePoints = (value: unknown): number | undefined =>
     ? Math.trunc(value)
     : undefined
 
+const normalizePointAccount = (value: unknown): PointAccount | undefined =>
+  value === 'effort' || value === 'rest' ? value : undefined
+
 const normalizeCompletedDate = (
   completed: boolean,
   value: unknown,
@@ -347,6 +359,9 @@ const normalizeSingleTask = (value: Partial<SingleTask>, fallbackDate: string): 
     completed,
     createdAt: normalizeDate(value.createdAt, fallbackDate),
     completedAt: normalizeCompletedDate(completed, value.completedAt, fallbackDate),
+    categoryId: typeof value.categoryId === 'string' ? value.categoryId : undefined,
+    pointAccount: normalizePointAccount(value.pointAccount),
+    pointOverride: normalizeNonNegativePoints(value.pointOverride),
   }
 }
 
@@ -377,6 +392,9 @@ const normalizeProject = (value: Partial<Project>, fallbackDate: string): Projec
     createdAt: normalizeDate(value.createdAt, fallbackDate),
     completedAt: normalizeCompletedDate(completed, value.completedAt, fallbackDate),
     bonusPoints: normalizeNonNegativePoints(value.bonusPoints),
+    categoryId: typeof value.categoryId === 'string' ? value.categoryId : undefined,
+    pointAccount: normalizePointAccount(value.pointAccount),
+    pointOverride: normalizeNonNegativePoints(value.pointOverride),
   }
 }
 
@@ -429,6 +447,11 @@ const normalizePointHistoryItem = (
     type: value.type,
     points: Math.trunc(value.points),
     completedAt: normalizeDate(value.completedAt, fallbackDate),
+    account: normalizePointAccount(value.account),
+    sourceId:
+      typeof value.sourceId === 'string' && value.sourceId.length > 0
+        ? value.sourceId
+        : `todo:${value.id}`,
     sourceTodo: value.sourceTodo
       ? normalizeTodoItems([value.sourceTodo], fallbackDate)[0]
       : undefined,
@@ -582,9 +605,9 @@ const migrateLegacyPointLedger = (
     addIfMissing({
       id: `ledger-todo-${item.id}`,
       sourceType: 'todo',
-      sourceId: `todo:${item.id}`,
+      sourceId: item.sourceId ?? `todo:${item.id}`,
       title: item.title,
-      account: pointRules.todoAccount,
+      account: item.account ?? pointRules.todoAccount,
       points: item.points,
       occurredAt: item.completedAt,
       reason: '旧Todo履歴から移行',
@@ -651,7 +674,9 @@ const migrateLegacyPointLedger = (
 const reconcilePendingHistory = (
   todos: TodoItem[],
   pendingHistory: TodoPointHistoryItem[],
-  hiddenHistoryIds: string[]
+  hiddenHistoryIds: string[],
+  categories: TaskCategory[],
+  pointRules: PointRules
 ): TodoPointHistoryItem[] => {
   const pendingIds = new Set(pendingHistory.map(item => item.id))
   const hiddenIds = new Set(hiddenHistoryIds)
@@ -662,11 +687,14 @@ const reconcilePendingHistory = (
       const task = todo.data as SingleTask
       const id = `single-${task.id}`
       if (task.completed && task.completedAt && pendingIds.has(id) && !hiddenIds.has(id)) {
+        const reward = resolveTodoReward(todo, categories, pointRules)
         candidates.push({
           id,
           title: task.text,
           type: 'single',
-          points: TODO_DIFFICULTY_POINTS[task.difficulty],
+          points: pendingHistory.find(item => item.id === id)?.points ?? reward.points,
+          account: pendingHistory.find(item => item.id === id)?.account ?? reward.account,
+          sourceId: pendingHistory.find(item => item.id === id)?.sourceId ?? `todo:${id}`,
           completedAt: task.completedAt,
           sourceTodo: todo,
         })
@@ -679,11 +707,14 @@ const reconcilePendingHistory = (
       milestone.steps.forEach(step => {
         const id = `step-${project.id}-${milestone.id}-${step.id}`
         if (step.completed && step.completedAt && pendingIds.has(id) && !hiddenIds.has(id)) {
+          const reward = resolveTodoReward(todo, categories, pointRules, getTodoStepPoints(step))
           candidates.push({
             id,
             title: `${project.name} / ${step.text}`,
             type: 'project-step',
-            points: normalizeNonNegativePoints(step.rewardPoints) ?? TODO_STEP_POINTS,
+            points: pendingHistory.find(item => item.id === id)?.points ?? getTodoStepPoints(step),
+            account: pendingHistory.find(item => item.id === id)?.account ?? reward.account,
+            sourceId: pendingHistory.find(item => item.id === id)?.sourceId ?? `todo:${id}`,
             completedAt: step.completedAt,
             sourceTodo: todo,
             sourceMilestoneId: milestone.id,
@@ -699,11 +730,14 @@ const reconcilePendingHistory = (
         pendingIds.has(milestoneId) &&
         !hiddenIds.has(milestoneId)
       ) {
+        const reward = resolveTodoReward(todo, categories, pointRules, getTodoMilestonePoints(milestone))
         candidates.push({
           id: milestoneId,
           title: `${project.name} / ${milestone.name}`,
           type: 'milestone',
-          points: normalizeNonNegativePoints(milestone.bonusPoints) ?? TODO_MILESTONE_POINTS,
+          points: pendingHistory.find(item => item.id === milestoneId)?.points ?? getTodoMilestonePoints(milestone),
+          account: pendingHistory.find(item => item.id === milestoneId)?.account ?? reward.account,
+          sourceId: pendingHistory.find(item => item.id === milestoneId)?.sourceId ?? `todo:${milestoneId}`,
           completedAt: milestone.completedAt,
           sourceTodo: todo,
           sourceMilestoneId: milestone.id,
@@ -718,11 +752,14 @@ const reconcilePendingHistory = (
       pendingIds.has(projectId) &&
       !hiddenIds.has(projectId)
     ) {
+      const reward = resolveTodoReward(todo, categories, pointRules)
       candidates.push({
         id: projectId,
         title: project.name,
         type: 'project',
-        points: normalizeNonNegativePoints(project.bonusPoints) ?? TODO_PROJECT_POINTS,
+        points: pendingHistory.find(item => item.id === projectId)?.points ?? reward.points,
+        account: pendingHistory.find(item => item.id === projectId)?.account ?? reward.account,
+        sourceId: pendingHistory.find(item => item.id === projectId)?.sourceId ?? `todo:${projectId}`,
         completedAt: project.completedAt,
         sourceTodo: todo,
       })
@@ -737,11 +774,15 @@ export const normalizeTodoSession = (
   fallbackDate = getTodoTimestamp()
 ): TodoSession => {
   const todos = normalizeTodoItems(value?.todos, fallbackDate)
+  const pointRules = normalizePointRules(value?.pointRules)
+  const taskCategories = normalizeTaskCategories(value?.taskCategories)
   const hiddenPointHistoryIds = normalizeHistoryIds(value?.hiddenPointHistoryIds)
   const pendingPointHistory = reconcilePendingHistory(
     todos,
     normalizePointHistory(value?.pendingPointHistory, fallbackDate),
-    hiddenPointHistoryIds
+    hiddenPointHistoryIds,
+    taskCategories,
+    pointRules
   )
   const earnedPoints =
     typeof value?.earnedPoints === 'number' && Number.isFinite(value.earnedPoints)
@@ -749,7 +790,6 @@ export const normalizeTodoSession = (
       : 0
   const archivedPointHistory = normalizePointHistory(value?.archivedPointHistory, fallbackDate)
   const isLegacySession = value?.pointRules === undefined
-  const pointRules = normalizePointRules(value?.pointRules)
   const studyBooks = normalizeStudyBooks(
     value?.studyBooks,
     fallbackDate,
@@ -785,7 +825,7 @@ export const normalizeTodoSession = (
     characterShop: normalizeCharacterShop(value?.characterShop),
     pointLedger,
     pointRules,
-    taskCategories: normalizeTaskCategories(value?.taskCategories),
+    taskCategories,
     taskPresets: normalizeTaskPresets(value?.taskPresets),
     dailyReviews,
   }
@@ -808,6 +848,47 @@ export const getTodoMilestonePoints = (milestone: Milestone): number =>
 
 export const getTodoProjectPoints = (project: Project): number =>
   normalizeNonNegativePoints(project.bonusPoints) ?? TODO_PROJECT_POINTS
+
+export const resolveTodoReward = (
+  todo: TodoItem,
+  categories: TaskCategory[],
+  pointRules: PointRules,
+  basePoints?: number
+): { account: PointAccount; points: number } => {
+  const item = todo.data as SingleTask | Project
+  const category = categories.find(candidate => candidate.id === item.categoryId)
+  const defaultPoints =
+    basePoints ??
+    (todo.type === 'single'
+      ? TODO_DIFFICULTY_POINTS[(item as SingleTask).difficulty]
+      : getTodoProjectPoints(item as Project))
+
+  return {
+    account: item.pointAccount ?? category?.account ?? pointRules.todoAccount ?? 'effort',
+    points:
+      basePoints === undefined
+        ? item.pointOverride ?? category?.points ?? defaultPoints
+        : basePoints,
+  }
+}
+
+export const createSingleTaskFromPreset = (
+  preset: TaskPreset,
+  createdAt = getTodoTimestamp(),
+  id = `task-${createdAt}-${Math.random().toString(36).slice(2)}`
+): TodoItem => ({
+  type: 'single',
+  data: {
+    id,
+    text: preset.title,
+    difficulty: preset.difficulty ?? 'medium',
+    completed: false,
+    createdAt,
+    categoryId: preset.categoryId,
+    pointAccount: preset.account,
+    pointOverride: preset.points,
+  },
+})
 
 export const getTodoDateKey = (dateValue: string): string => {
   const date = new Date(dateValue)
@@ -903,10 +984,18 @@ export const getTodoPointHistoryForDate = (
   date: string,
   archivedPointHistory: TodoPointHistoryItem[] = [],
   pendingPointHistory: TodoPointHistoryItem[] = [],
-  hiddenPointHistoryIds: string[] = []
+  hiddenPointHistoryIds: string[] = [],
+  taskCategories: TaskCategory[] = [],
+  pointRules: PointRules = normalizePointRules(undefined)
 ): TodoPointHistoryItem[] => {
   const hiddenIds = new Set(hiddenPointHistoryIds)
-  const history = getTodoPointHistory(todos, pendingPointHistory, hiddenPointHistoryIds).filter(
+  const history = getTodoPointHistory(
+    todos,
+    pendingPointHistory,
+    hiddenPointHistoryIds,
+    taskCategories,
+    pointRules
+  ).filter(
     item => getTodoDateKey(item.completedAt) === date
   )
   const archivedHistory = archivedPointHistory.filter(
@@ -923,7 +1012,9 @@ export const getTodoPointHistoryForDate = (
 export const getTodoPointHistory = (
   todos: TodoItem[],
   pendingPointHistory: TodoPointHistoryItem[] = [],
-  hiddenPointHistoryIds: string[] = []
+  hiddenPointHistoryIds: string[] = [],
+  taskCategories: TaskCategory[] = [],
+  pointRules: PointRules = normalizePointRules(undefined)
 ): TodoPointHistoryItem[] => {
   const pendingIds = new Set(pendingPointHistory.map(item => item.id))
   const hiddenIds = new Set(hiddenPointHistoryIds)
@@ -934,11 +1025,14 @@ export const getTodoPointHistory = (
 
       const historyId = `single-${task.id}`
       if (task.completedAt && !pendingIds.has(historyId) && !hiddenIds.has(historyId)) {
+        const reward = resolveTodoReward(todo, taskCategories, pointRules)
         items.push({
           id: historyId,
           title: task.text,
           type: 'single',
-          points: TODO_DIFFICULTY_POINTS[task.difficulty],
+          points: reward.points,
+          account: reward.account,
+          sourceId: `todo:${historyId}`,
           completedAt: task.completedAt,
           sourceTodo: todo,
         })
@@ -953,11 +1047,14 @@ export const getTodoPointHistory = (
       milestone.steps.forEach(step => {
         const historyId = `step-${project.id}-${milestone.id}-${step.id}`
         if (step.completedAt && !pendingIds.has(historyId) && !hiddenIds.has(historyId)) {
+          const reward = resolveTodoReward(todo, taskCategories, pointRules, getTodoStepPoints(step))
           items.push({
             id: historyId,
             title: `${project.name} / ${step.text}`,
             type: 'project-step',
             points: getTodoStepPoints(step),
+            account: reward.account,
+            sourceId: `todo:${historyId}`,
             completedAt: step.completedAt,
             sourceTodo: todo,
             sourceMilestoneId: milestone.id,
@@ -982,11 +1079,14 @@ export const getTodoPointHistory = (
         !pendingIds.has(milestoneHistoryId) &&
         !hiddenIds.has(milestoneHistoryId)
       ) {
+        const reward = resolveTodoReward(todo, taskCategories, pointRules, getTodoMilestonePoints(milestone))
         items.push({
           id: milestoneHistoryId,
           title: `${project.name} / ${milestone.name}`,
           type: 'milestone',
           points: getTodoMilestonePoints(milestone),
+          account: reward.account,
+          sourceId: `todo:${milestoneHistoryId}`,
           completedAt: milestoneCompletedAt,
           sourceTodo: todo,
           sourceMilestoneId: milestone.id,
@@ -1000,11 +1100,14 @@ export const getTodoPointHistory = (
       !pendingIds.has(projectHistoryId) &&
       !hiddenIds.has(projectHistoryId)
     ) {
+      const reward = resolveTodoReward(todo, taskCategories, pointRules)
       items.push({
         id: projectHistoryId,
         title: project.name,
         type: 'project',
-        points: getTodoProjectPoints(project),
+        points: reward.points,
+        account: reward.account,
+        sourceId: `todo:${projectHistoryId}`,
         completedAt: project.completedAt,
         sourceTodo: todo,
       })
@@ -1036,4 +1139,33 @@ export const mergeTodoPointHistory = (
     const bTime = new Date(b.completedAt).getTime()
     return aTime - bTime
   })
+}
+
+export const finalizeTodoDelivery = (
+  session: TodoSession,
+  activeTodos: TodoItem[] = session.todos
+): TodoSession => {
+  const delivered = session.pendingPointHistory
+  const pointLedger = delivered.reduce(
+    (ledger, item) => upsertPointLedgerEntry(ledger, {
+      id: `ledger-${item.id}`,
+      sourceType: 'todo',
+      sourceId: item.sourceId ?? `todo:${item.id}`,
+      title: item.title,
+      account: item.account ?? session.pointRules.todoAccount,
+      points: item.points,
+      occurredAt: item.completedAt,
+      reason: 'Todo納品',
+    }),
+    session.pointLedger
+  )
+
+  return {
+    ...session,
+    todos: activeTodos,
+    earnedPoints: session.earnedPoints + getTodoPendingPoints(delivered),
+    archivedPointHistory: mergeTodoPointHistory(session.archivedPointHistory, delivered),
+    pendingPointHistory: [],
+    pointLedger,
+  }
 }

@@ -42,8 +42,9 @@ export interface TaskPreset {
   id: string
   title: string
   categoryId?: string
-  account: PointAccount
-  points: number
+  difficulty?: 'easy' | 'medium' | 'hard'
+  account?: PointAccount
+  points?: number
 }
 
 export interface DailyReview {
@@ -246,16 +247,60 @@ export const normalizeTaskPresets = (value: Partial<TaskPreset>[] | undefined): 
   if (!Array.isArray(value)) return []
   return value.reduce<TaskPreset[]>((items, item) => {
     if (typeof item.id !== 'string' || typeof item.title !== 'string') return items
+    const difficulty =
+      item.difficulty === 'easy' || item.difficulty === 'medium' || item.difficulty === 'hard'
+        ? item.difficulty
+        : undefined
     items.push({
       id: item.id,
       title: item.title,
       categoryId: typeof item.categoryId === 'string' ? item.categoryId : undefined,
-      account: isPointAccount(item.account) ? item.account : 'effort',
-      points: normalizeAwardPoints(item.points),
+      difficulty,
+      account: isPointAccount(item.account) ? item.account : undefined,
+      points: normalizeAwardPointsOrUndefined(item.points),
     })
     return items
   }, [])
 }
+
+export const updatePointLedgerEntries = (
+  ledger: PointLedgerEntry[],
+  ids: string[],
+  changes: { account?: PointAccount; points?: number }
+): PointLedgerEntry[] => {
+  const selected = new Set(ids)
+  const points =
+    typeof changes.points === 'number' && Number.isFinite(changes.points)
+      ? Math.trunc(changes.points)
+      : undefined
+
+  return ledger.map(entry => {
+    if (!selected.has(entry.id)) return entry
+    const nextPoints = points ?? entry.points
+    return {
+      ...entry,
+      account: changes.account ?? entry.account,
+      points: entry.sourceType === 'manual-adjustment' ? nextPoints : Math.max(0, nextPoints),
+    }
+  })
+}
+
+export const createManualAdjustment = (
+  account: PointAccount,
+  points: number,
+  reason: string,
+  occurredAt = new Date().toISOString(),
+  id = `manual-${occurredAt}-${Math.random().toString(36).slice(2)}`
+): PointLedgerEntry => ({
+  id,
+  sourceType: 'manual-adjustment',
+  sourceId: `manual:${id}`,
+  title: '手動調整',
+  account,
+  points: Math.trunc(points),
+  occurredAt,
+  reason: reason.trim(),
+})
 
 export const normalizeDailyReviews = (
   value: Partial<DailyReview>[] | undefined,

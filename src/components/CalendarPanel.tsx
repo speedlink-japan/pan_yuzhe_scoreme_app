@@ -188,9 +188,22 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
     () =>
       mergeTodoPointHistory(
         todoSession.archivedPointHistory,
-        getTodoPointHistory(todoSession.todos, todoSession.pendingPointHistory)
+        getTodoPointHistory(
+          todoSession.todos,
+          todoSession.pendingPointHistory,
+          todoSession.hiddenPointHistoryIds,
+          todoSession.taskCategories,
+          todoSession.pointRules
+        )
       ),
-    [todoSession.archivedPointHistory, todoSession.pendingPointHistory, todoSession.todos]
+    [
+      todoSession.archivedPointHistory,
+      todoSession.pendingPointHistory,
+      todoSession.todos,
+      todoSession.hiddenPointHistoryIds,
+      todoSession.taskCategories,
+      todoSession.pointRules,
+    ]
   )
   const allPointHistory = React.useMemo(() => {
     const hiddenIds = new Set(todoSession.hiddenPointHistoryIds)
@@ -207,7 +220,9 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
             selectedDateKey,
             todoSession.archivedPointHistory,
             todoSession.pendingPointHistory,
-            todoSession.hiddenPointHistoryIds
+            todoSession.hiddenPointHistoryIds,
+            todoSession.taskCategories,
+            todoSession.pointRules
           )
         : [],
     [
@@ -216,6 +231,8 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
       todoSession.archivedPointHistory,
       todoSession.pendingPointHistory,
       todoSession.hiddenPointHistoryIds,
+      todoSession.taskCategories,
+      todoSession.pointRules,
     ]
   )
   const currentWeekStart = React.useMemo(() => startOfWeek(today), [today])
