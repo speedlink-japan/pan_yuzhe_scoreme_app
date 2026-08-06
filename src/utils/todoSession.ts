@@ -514,15 +514,16 @@ const normalizeStudyBooks = (
 
     const pageCount = Math.floor(book.pageCount)
     const existingAward = pointLedger.find(entry => entry.sourceId === `reading:${book.id}`)
+    const savedOrCalculatedPoints = normalizeNonNegativePoints(book.points) ?? (isLegacySession
+      ? pageCount * LEGACY_STUDY_POINTS_PER_PAGE
+      : calculateReadingPoints(book.category, pageCount, pointRules))
     books.push({
       id: book.id,
       title: book.title,
       category: book.category,
       pageCount,
       createdAt: normalizeDate(book.createdAt, fallbackDate),
-      points: normalizeNonNegativePoints(book.points) ?? (isLegacySession
-        ? pageCount * LEGACY_STUDY_POINTS_PER_PAGE
-        : calculateReadingPoints(book.category, pageCount, pointRules)),
+      points: existingAward?.points ?? savedOrCalculatedPoints,
       pointAccount: existingAward?.account ?? (isPointAccount(book.pointAccount)
         ? book.pointAccount
         : pointRules.readingAccount),
@@ -550,15 +551,16 @@ const normalizeNotebookMemos = (
     }
 
     const existingAward = pointLedger.find(entry => entry.sourceId === `memo:${memo.id}`)
+    const savedOrCalculatedPoints = normalizeNonNegativePoints(memo.points) ?? (isLegacySession
+      ? Math.floor(memo.content.length / LEGACY_NOTEBOOK_CHARACTERS_PER_POINT)
+      : calculateMemoPoints(memo.content.length, pointRules))
     memos.push({
       id: memo.id,
       title: memo.title,
       content: memo.content,
       color: typeof memo.color === 'string' ? memo.color : '#FFB6C1',
       createdAt: normalizeDate(memo.createdAt, fallbackDate),
-      points: normalizeNonNegativePoints(memo.points) ?? (isLegacySession
-        ? Math.floor(memo.content.length / LEGACY_NOTEBOOK_CHARACTERS_PER_POINT)
-        : calculateMemoPoints(memo.content.length, pointRules)),
+      points: existingAward?.points ?? savedOrCalculatedPoints,
       pointAccount: existingAward?.account ?? (isPointAccount(memo.pointAccount)
         ? memo.pointAccount
         : pointRules.memoAccount),

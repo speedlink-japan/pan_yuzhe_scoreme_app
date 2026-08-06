@@ -431,8 +431,45 @@ test('reading and memo normalization keeps existing ledger edits and unique sour
   assert.equal(reloaded.pointLedger.filter(entry => entry.sourceId === 'memo:same-memo').length, 1)
   assert.equal(reloaded.pointLedger.find(entry => entry.sourceId === 'reading:same-book')?.points, 8)
   assert.equal(reloaded.pointLedger.find(entry => entry.sourceId === 'memo:same-memo')?.points, 7)
+  assert.equal(reloaded.studyBooks[0].points, 8)
+  assert.equal(reloaded.notebookMemos[0].points, 7)
   assert.equal(reloaded.studyBooks[0].pointAccount, 'rest')
   assert.equal(reloaded.notebookMemos[0].pointAccount, 'rest')
+})
+
+test('bulk reading and memo ledger edits sync record points through a JSON round trip', () => {
+  const saved = normalizeTodoSession({
+    pointRules: DEFAULT_POINT_RULES,
+    studyBooks: [{
+      id: 'bulk-book', title: 'Bulk book', category: 'paper', pageCount: 4,
+      createdAt: timestamp, points: 2, pointAccount: 'effort',
+    }],
+    notebookMemos: [{
+      id: 'bulk-memo', title: 'Bulk memo', content: 'x'.repeat(100), color: '#fff',
+      createdAt: timestamp, points: 1, pointAccount: 'effort',
+    }],
+  }, timestamp)
+  const awardIds = saved.pointLedger
+    .filter(entry => entry.sourceType === 'reading' || entry.sourceType === 'memo')
+    .map(entry => entry.id)
+  const bulkEdited = {
+    ...saved,
+    pointLedger: updatePointLedgerEntries(saved.pointLedger, awardIds, {
+      account: 'rest',
+      points: 6,
+    }),
+  }
+
+  const reloaded = normalizeTodoSession(JSON.parse(JSON.stringify(bulkEdited)), timestamp)
+
+  assert.equal(reloaded.studyBooks[0].points, 6)
+  assert.equal(reloaded.notebookMemos[0].points, 6)
+  assert.equal(reloaded.studyBooks[0].pointAccount, 'rest')
+  assert.equal(reloaded.notebookMemos[0].pointAccount, 'rest')
+  assert.equal(reloaded.pointLedger.find(entry => entry.sourceId === 'reading:bulk-book')?.points, 6)
+  assert.equal(reloaded.pointLedger.find(entry => entry.sourceId === 'memo:bulk-memo')?.points, 6)
+  assert.equal(reloaded.pointLedger.filter(entry => entry.sourceId === 'reading:bulk-book').length, 1)
+  assert.equal(reloaded.pointLedger.filter(entry => entry.sourceId === 'memo:bulk-memo').length, 1)
 })
 
 test('ledger upsert is idempotent by sourceId and updates the existing award', () => {
