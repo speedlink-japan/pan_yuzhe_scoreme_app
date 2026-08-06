@@ -10,6 +10,7 @@ import {
   calculateReadingPoints,
   getPointBalances,
   normalizeDailyReviews,
+  normalizeDailyReviewLedgerSources,
   normalizePointLedger,
   normalizePointRules,
   normalizeTaskCategories,
@@ -807,7 +808,11 @@ export const normalizeTodoSession = (
       : 0
   const archivedPointHistory = normalizePointHistory(value?.archivedPointHistory, fallbackDate)
   const isLegacySession = value?.pointRules === undefined
-  const normalizedLedger = normalizePointLedger(value?.pointLedger, fallbackDate)
+  const normalizedLedger = normalizeDailyReviewLedgerSources(
+    normalizePointLedger(value?.pointLedger, fallbackDate),
+    value?.dailyReviews,
+    fallbackDate
+  )
   const studyBooks = normalizeStudyBooks(
     value?.studyBooks,
     fallbackDate,

@@ -386,6 +386,45 @@ export const normalizeDailyReviews = (
   }, [])
 }
 
+export const normalizeDailyReviewLedgerSources = (
+  ledger: PointLedgerEntry[],
+  rawReviews: Partial<DailyReview>[] | undefined,
+  fallbackDate: string
+): PointLedgerEntry[] => {
+  if (!Array.isArray(rawReviews)) return ledger.slice()
+
+  const legacySourceToCanonical = new Map<string, string>()
+  rawReviews.forEach(review => {
+    if (typeof review.id !== 'string' || review.id.length === 0) return
+    const normalized = normalizeDailyReviews([review], fallbackDate)[0]
+    if (!normalized) return
+    legacySourceToCanonical.set(`review:${review.id}`, `review:${normalized.date}`)
+  })
+
+  const canonicalSources = new Set(legacySourceToCanonical.values())
+  const claimedCanonicalSources = new Set(
+    ledger
+      .filter(entry => entry.sourceType === 'review' && canonicalSources.has(entry.sourceId))
+      .map(entry => entry.sourceId)
+  )
+
+  return ledger.reduce<PointLedgerEntry[]>((normalizedLedger, entry) => {
+    if (entry.sourceType !== 'review') return [...normalizedLedger, entry]
+
+    const canonicalSourceId = legacySourceToCanonical.get(entry.sourceId)
+    if (!canonicalSourceId || canonicalSourceId === entry.sourceId) {
+      return upsertPointLedgerEntry(normalizedLedger, entry, fallbackDate)
+    }
+    if (claimedCanonicalSources.has(canonicalSourceId)) return normalizedLedger
+
+    claimedCanonicalSources.add(canonicalSourceId)
+    return upsertPointLedgerEntry(normalizedLedger, {
+      ...entry,
+      sourceId: canonicalSourceId,
+    }, fallbackDate)
+  }, [])
+}
+
 export const createDailyReviewDraft = (date: string, updatedAt: string): DailyReview => ({
   id: `daily-review:${date}`,
   date,

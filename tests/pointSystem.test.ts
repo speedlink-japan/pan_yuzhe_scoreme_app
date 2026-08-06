@@ -733,6 +733,54 @@ test('migration preserves user-edited ledger accounts and points on repeated nor
   })
 })
 
+test('legacy daily review ledger sources migrate by original review id without double awarding', () => {
+  const completedLater = '2026-07-30T03:00:00.000Z'
+  const migrated = normalizeTodoSession({
+    todos: [],
+    earnedPoints: 0,
+    archivedPointHistory: [],
+    pendingPointHistory: [],
+    hiddenPointHistoryIds: [],
+    studyBooks: [],
+    notebookMemos: [],
+    pointRules: DEFAULT_POINT_RULES,
+    dailyReviews: [
+      { id: 'legacy-review-one', date: '2026-07-21', note: 'one', completedAt: completedLater, awarded: true },
+      { id: 'legacy-review-two', date: '2026-07-22', note: 'two', completedAt: completedLater, awarded: true },
+    ],
+    pointLedger: [
+      {
+        id: 'legacy-ledger-one', sourceType: 'review', sourceId: 'review:legacy-review-one',
+        title: 'Edited one', account: 'rest', points: 7, occurredAt: completedLater,
+      },
+      {
+        id: 'legacy-ledger-two', sourceType: 'review', sourceId: 'review:legacy-review-two',
+        title: 'Edited two', account: 'effort', points: 11, occurredAt: completedLater,
+      },
+    ],
+  }, timestamp)
+
+  assert.deepEqual(migrated.dailyReviews.map(review => [review.id, review.date]), [
+    ['daily-review:2026-07-21', '2026-07-21'],
+    ['daily-review:2026-07-22', '2026-07-22'],
+  ])
+  assert.deepEqual(migrated.pointLedger.map(entry => ({
+    id: entry.id,
+    sourceId: entry.sourceId,
+    account: entry.account,
+    points: entry.points,
+    occurredAt: entry.occurredAt,
+  })), [
+    { id: 'legacy-ledger-one', sourceId: 'review:2026-07-21', account: 'rest', points: 7, occurredAt: completedLater },
+    { id: 'legacy-ledger-two', sourceId: 'review:2026-07-22', account: 'effort', points: 11, occurredAt: completedLater },
+  ])
+  assert.deepEqual(getPointBalances(migrated.pointLedger), { effort: 11, rest: 7, total: 18 })
+
+  const normalizedAgain = normalizeTodoSession(JSON.parse(JSON.stringify(migrated)), timestamp)
+  assert.deepEqual(normalizedAgain.pointLedger, migrated.pointLedger)
+  assert.deepEqual(normalizedAgain.dailyReviews, migrated.dailyReviews)
+})
+
 test('new session fields normalize and survive a JSON and Supabase-compatible round trip', () => {
   const session = normalizeTodoSession({
     todos: [],
