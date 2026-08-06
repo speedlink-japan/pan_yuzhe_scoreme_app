@@ -5,6 +5,7 @@ import styles from './PointManagementModal.module.css'
 import {
   PointAccount,
   PointLedgerEntry,
+  StudyCategory,
   TaskCategory,
   TodoSession,
   getAvailablePoints,
@@ -33,6 +34,10 @@ const accountLabel = (account: PointAccount) => account === 'effort' ? '頑張�
 const sourceLabels: Record<PointLedgerEntry['sourceType'], string> = {
   todo: 'Todo', reading: '読書', memo: 'メモ', review: '見直し', 'manual-adjustment': '手動調整',
 }
+const readingCategoryLabels: Record<StudyCategory, string> = {
+  manga: '漫画', magazine: '雑誌', bunko: '文庫本', textbook: '教科書', paper: '文献',
+}
+const readingCategories = Object.keys(readingCategoryLabels) as StudyCategory[]
 
 export default function PointManagementModal({ onClose }: { onClose: () => void }) {
   const [session, setSession] = useState<TodoSession>(() => readSession())
@@ -48,6 +53,13 @@ export default function PointManagementModal({ onClose }: { onClose: () => void 
   const [categoryName, setCategoryName] = useState('')
   const [categoryAccount, setCategoryAccount] = useState<PointAccount>('effort')
   const [categoryPoints, setCategoryPoints] = useState('10')
+  const initialReadingMemoRules = useMemo(() => readSession().pointRules, [])
+  const [readingAccount, setReadingAccount] = useState<PointAccount>(initialReadingMemoRules.readingAccount)
+  const [memoAccount, setMemoAccount] = useState<PointAccount>(initialReadingMemoRules.memoAccount)
+  const [readingPages, setReadingPages] = useState<Record<StudyCategory, string>>(() => Object.fromEntries(
+    readingCategories.map(category => [category, String(initialReadingMemoRules.readingPagesPerPoint[category])])
+  ) as Record<StudyCategory, string>)
+  const [memoCharacters, setMemoCharacters] = useState(String(initialReadingMemoRules.memoCharactersPerPoint))
 
   const balances = getPointBalances(session.pointLedger)
   const filteredLedger = useMemo(() => session.pointLedger
@@ -118,6 +130,19 @@ export default function PointManagementModal({ onClose }: { onClose: () => void 
     })
   }
 
+  const saveReadingMemoRules = () => commit({
+    ...session,
+    pointRules: {
+      ...session.pointRules,
+      readingAccount,
+      memoAccount,
+      readingPagesPerPoint: Object.fromEntries(
+        readingCategories.map(category => [category, Number(readingPages[category])])
+      ) as TodoSession['pointRules']['readingPagesPerPoint'],
+      memoCharactersPerPoint: Number(memoCharacters),
+    },
+  })
+
   return (
     <div className={styles.backdrop} role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className={styles.modal} role="dialog" aria-modal="true" aria-label="ポイント管理">
@@ -163,6 +188,18 @@ export default function PointManagementModal({ onClose }: { onClose: () => void 
               <input aria-label="プリセットのポイント" type="number" min="0" step="1" value={preset.points ?? ''} placeholder="ルールに従う" onChange={e => updatePreset(preset.id, { points: e.target.value === '' ? undefined : Math.max(0, Math.trunc(Number(e.target.value))) })} />
               <button className={styles.danger} onClick={() => window.confirm('このプリセットを削除する？') && commit({ ...session, taskPresets: session.taskPresets.filter(item => item.id !== preset.id) })}>削除</button>
             </div>)}</div>
+          </section>
+
+          <section>
+            <h3>読書・メモルール</h3>
+            <p className={styles.ruleNote}>変更は今後作成する記録だけに反映される。過去の獲得口座・ポイントを変える場合は「獲得履歴」の一括変更を使う。</p>
+            <div className={styles.readingMemoRules}>
+              <label>読書の既定口座<select value={readingAccount} onChange={e => setReadingAccount(e.target.value as PointAccount)}><option value="effort">頑張り</option><option value="rest">休憩</option></select></label>
+              {readingCategories.map(category => <label key={category}>{readingCategoryLabels[category]}<span>1ptまで</span><input aria-label={`${readingCategoryLabels[category]}の1ptまでのページ数`} type="number" min="1" step="1" value={readingPages[category]} onChange={e => setReadingPages({ ...readingPages, [category]: e.target.value })} /><span>ページ</span></label>)}
+              <label>メモの既定口座<select value={memoAccount} onChange={e => setMemoAccount(e.target.value as PointAccount)}><option value="effort">頑張り</option><option value="rest">休憩</option></select></label>
+              <label>メモ<span>1ptまで</span><input aria-label="メモの1ptまでの文字数" type="number" min="1" step="1" value={memoCharacters} onChange={e => setMemoCharacters(e.target.value)} /><span>文字</span></label>
+            </div>
+            <button className={styles.saveRulesButton} onClick={saveReadingMemoRules}>読書・メモルールを保存</button>
           </section>
         </div>
       </section>

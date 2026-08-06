@@ -5,13 +5,14 @@ import styles from './StudyPanel.module.css'
 import {
   StudyBookRecord,
   StudyCategory,
+  PointAccount,
   TODO_SESSION_STORAGE_KEY,
   TodoSession,
   getStudyPoints,
   getTodoTimestamp,
   normalizeTodoSession,
 } from '@/utils/todoSession'
-import { calculateReadingPoints } from '@/utils/pointLedger'
+import { calculateReadingPoints, upsertPointLedgerEntry } from '@/utils/pointLedger'
 import { persistTodoSession } from '@/utils/todoSupabaseSync'
 
 const readTodoSession = (): TodoSession => {
@@ -36,20 +37,34 @@ const StudyPanel: React.FC<StudyPanelProps> = ({ onPointsChange }) => {
     title: string
     category: StudyCategory
     pageCount: number
+    pointAccount?: PointAccount
   }>({
     title: '',
     category: 'bunko',
     pageCount: 1,
+    pointAccount: undefined,
   })
 
   const calculatePoints = (pageCount: number, category = newBook.category) =>
     calculateReadingPoints(category, pageCount, readTodoSession().pointRules)
 
-  const commitBooks = (nextBooks: StudyBookRecord[]): boolean => {
+  const commitBooks = (nextBooks: StudyBookRecord[], savedBook?: StudyBookRecord): boolean => {
     const currentSession = readTodoSession()
     const nextSession = normalizeTodoSession({
       ...currentSession,
       studyBooks: nextBooks,
+      pointLedger: savedBook
+        ? upsertPointLedgerEntry(currentSession.pointLedger, {
+            id: `ledger-reading-${savedBook.id}`,
+            sourceType: 'reading',
+            sourceId: `reading:${savedBook.id}`,
+            title: savedBook.title,
+            account: savedBook.pointAccount ?? currentSession.pointRules.readingAccount,
+            points: savedBook.points,
+            occurredAt: savedBook.createdAt,
+            reason: '読書記録',
+          })
+        : currentSession.pointLedger,
     })
     const updatedAt = getTodoTimestamp()
 
@@ -70,25 +85,29 @@ const StudyPanel: React.FC<StudyPanelProps> = ({ onPointsChange }) => {
   const addBook = () => {
     if (newBook.title.trim() && newBook.pageCount > 0) {
       const points = calculatePoints(newBook.pageCount, newBook.category)
+      const createdAt = getTodoTimestamp()
+      const book: StudyBookRecord = {
+        id: crypto.randomUUID(),
+        title: newBook.title.trim(),
+        category: newBook.category,
+        pageCount: newBook.pageCount,
+        createdAt,
+        points,
+        pointAccount: newBook.pointAccount ?? readTodoSession().pointRules.readingAccount,
+      }
 
       const nextBooks = [
         ...books,
-        {
-          id: Date.now().toString(),
-          title: newBook.title,
-          category: newBook.category,
-          pageCount: newBook.pageCount,
-          createdAt: getTodoTimestamp(),
-          points,
-        },
+        book,
       ]
 
-      if (!commitBooks(nextBooks)) return
+      if (!commitBooks(nextBooks, book)) return
 
       setNewBook({
         title: '',
         category: 'bunko',
         pageCount: 1,
+        pointAccount: undefined,
       })
       setActiveTab('view')
     }
@@ -158,6 +177,7 @@ const StudyPanel: React.FC<StudyPanelProps> = ({ onPointsChange }) => {
                     <span className={styles.bookCategory}>{categoryLabels[book.category]}</span>
                     <span className={styles.bookPages}>{book.pageCount}p</span>
                     <span className={styles.bookPoints}>+{book.points}pt</span>
+                    <span className={styles.accountBadge}>{book.pointAccount === 'rest' ? '休憩' : '頑張り'}</span>
                   </div>
                 </div>
               </div>
@@ -186,6 +206,18 @@ const StudyPanel: React.FC<StudyPanelProps> = ({ onPointsChange }) => {
                 <option value="magazine">雑誌</option>
                 <option value="textbook">教科書</option>
                 <option value="paper">文献</option>
+              </select>
+            </div>
+
+            <div className={styles.formGroup}>
+              <label>獲得口座:</label>
+              <select
+                value={newBook.pointAccount ?? ''}
+                onChange={(e) => setNewBook({ ...newBook, pointAccount: (e.target.value || undefined) as PointAccount | undefined })}
+              >
+                <option value="">ルールに従う</option>
+                <option value="effort">頑張り</option>
+                <option value="rest">休憩</option>
               </select>
             </div>
 

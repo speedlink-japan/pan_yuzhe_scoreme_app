@@ -219,12 +219,26 @@ export const calculateReadingPoints = (
   category: ReadingCategory,
   pageCount: number,
   rules: PointRules = DEFAULT_POINT_RULES
-): number => Math.floor(Math.max(0, Math.trunc(pageCount)) / rules.readingPagesPerPoint[category])
+): number => {
+  if (typeof pageCount !== 'number' || !Number.isFinite(pageCount) || pageCount <= 0) return 0
+  const normalizedRules = normalizePointRules(rules)
+  const pagesPerPoint = normalizedRules.readingPagesPerPoint[category]
+  if (!pagesPerPoint) return 0
+  return Math.max(1, Math.floor(pageCount / pagesPerPoint))
+}
 
 export const calculateMemoPoints = (
   characterCount: number,
   rules: PointRules = DEFAULT_POINT_RULES
-): number => Math.floor(Math.max(0, Math.trunc(characterCount)) / rules.memoCharactersPerPoint)
+): number => {
+  if (
+    typeof characterCount !== 'number' ||
+    !Number.isFinite(characterCount) ||
+    characterCount <= 0
+  ) return 0
+  const normalizedRules = normalizePointRules(rules)
+  return Math.max(1, Math.floor(characterCount / normalizedRules.memoCharactersPerPoint))
+}
 
 export const normalizeTaskCategories = (
   value: Partial<TaskCategory>[] | undefined

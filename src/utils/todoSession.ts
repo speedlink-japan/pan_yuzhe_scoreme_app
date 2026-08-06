@@ -87,6 +87,7 @@ export interface StudyBookRecord {
   pageCount: number
   createdAt: string
   points: number
+  pointAccount?: PointAccount
 }
 
 export interface NotebookMemoRecord {
@@ -96,6 +97,7 @@ export interface NotebookMemoRecord {
   color: string
   createdAt: string
   points: number
+  pointAccount?: PointAccount
 }
 
 export interface CharacterShopState {
@@ -486,11 +488,15 @@ const isStudyCategory = (value: unknown): value is StudyCategory =>
   value === 'textbook' ||
   value === 'paper'
 
+const isPointAccount = (value: unknown): value is PointAccount =>
+  value === 'effort' || value === 'rest'
+
 const normalizeStudyBooks = (
   value: Partial<StudyBookRecord>[] | undefined,
   fallbackDate: string,
   pointRules: PointRules,
-  isLegacySession: boolean
+  isLegacySession: boolean,
+  pointLedger: PointLedgerEntry[]
 ): StudyBookRecord[] => {
   if (!Array.isArray(value)) return []
 
@@ -507,17 +513,19 @@ const normalizeStudyBooks = (
     }
 
     const pageCount = Math.floor(book.pageCount)
+    const existingAward = pointLedger.find(entry => entry.sourceId === `reading:${book.id}`)
     books.push({
       id: book.id,
       title: book.title,
       category: book.category,
       pageCount,
       createdAt: normalizeDate(book.createdAt, fallbackDate),
-      points:
-        isLegacySession
-          ? pageCount * LEGACY_STUDY_POINTS_PER_PAGE
-          : normalizeNonNegativePoints(book.points) ??
-            calculateReadingPoints(book.category, pageCount, pointRules),
+      points: normalizeNonNegativePoints(book.points) ?? (isLegacySession
+        ? pageCount * LEGACY_STUDY_POINTS_PER_PAGE
+        : calculateReadingPoints(book.category, pageCount, pointRules)),
+      pointAccount: existingAward?.account ?? (isPointAccount(book.pointAccount)
+        ? book.pointAccount
+        : pointRules.readingAccount),
     })
     return books
   }, [])
@@ -527,7 +535,8 @@ const normalizeNotebookMemos = (
   value: Partial<NotebookMemoRecord>[] | undefined,
   fallbackDate: string,
   pointRules: PointRules,
-  isLegacySession: boolean
+  isLegacySession: boolean,
+  pointLedger: PointLedgerEntry[]
 ): NotebookMemoRecord[] => {
   if (!Array.isArray(value)) return []
 
@@ -540,17 +549,19 @@ const normalizeNotebookMemos = (
       return memos
     }
 
+    const existingAward = pointLedger.find(entry => entry.sourceId === `memo:${memo.id}`)
     memos.push({
       id: memo.id,
       title: memo.title,
       content: memo.content,
       color: typeof memo.color === 'string' ? memo.color : '#FFB6C1',
       createdAt: normalizeDate(memo.createdAt, fallbackDate),
-      points:
-        isLegacySession
-          ? Math.floor(memo.content.length / LEGACY_NOTEBOOK_CHARACTERS_PER_POINT)
-          : normalizeNonNegativePoints(memo.points) ??
-            calculateMemoPoints(memo.content.length, pointRules),
+      points: normalizeNonNegativePoints(memo.points) ?? (isLegacySession
+        ? Math.floor(memo.content.length / LEGACY_NOTEBOOK_CHARACTERS_PER_POINT)
+        : calculateMemoPoints(memo.content.length, pointRules)),
+      pointAccount: existingAward?.account ?? (isPointAccount(memo.pointAccount)
+        ? memo.pointAccount
+        : pointRules.memoAccount),
     })
     return memos
   }, [])
@@ -635,7 +646,7 @@ const migrateLegacyPointLedger = (
       sourceType: 'reading',
       sourceId: `reading:${book.id}`,
       title: book.title,
-      account: pointRules.readingAccount,
+      account: book.pointAccount ?? pointRules.readingAccount,
       points: book.points,
       occurredAt: book.createdAt,
       reason: '読書記録',
@@ -648,7 +659,7 @@ const migrateLegacyPointLedger = (
       sourceType: 'memo',
       sourceId: `memo:${memo.id}`,
       title: memo.title,
-      account: pointRules.memoAccount,
+      account: memo.pointAccount ?? pointRules.memoAccount,
       points: memo.points,
       occurredAt: memo.createdAt,
       reason: 'メモ記録',
@@ -790,21 +801,24 @@ export const normalizeTodoSession = (
       : 0
   const archivedPointHistory = normalizePointHistory(value?.archivedPointHistory, fallbackDate)
   const isLegacySession = value?.pointRules === undefined
+  const normalizedLedger = normalizePointLedger(value?.pointLedger, fallbackDate)
   const studyBooks = normalizeStudyBooks(
     value?.studyBooks,
     fallbackDate,
     pointRules,
-    isLegacySession
+    isLegacySession,
+    normalizedLedger
   )
   const notebookMemos = normalizeNotebookMemos(
     value?.notebookMemos,
     fallbackDate,
     pointRules,
-    isLegacySession
+    isLegacySession,
+    normalizedLedger
   )
   const dailyReviews = normalizeDailyReviews(value?.dailyReviews, fallbackDate)
   const pointLedger = migrateLegacyPointLedger(
-    normalizePointLedger(value?.pointLedger, fallbackDate),
+    normalizedLedger,
     earnedPoints,
     archivedPointHistory,
     studyBooks,

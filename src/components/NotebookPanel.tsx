@@ -4,13 +4,14 @@ import React, { useState } from 'react'
 import styles from './NotebookPanel.module.css'
 import {
   NotebookMemoRecord,
+  PointAccount,
   TODO_SESSION_STORAGE_KEY,
   TodoSession,
   getNotebookPoints,
   getTodoTimestamp,
   normalizeTodoSession,
 } from '@/utils/todoSession'
-import { calculateMemoPoints } from '@/utils/pointLedger'
+import { calculateMemoPoints, upsertPointLedgerEntry } from '@/utils/pointLedger'
 import { persistTodoSession } from '@/utils/todoSupabaseSync'
 
 const readTodoSession = (): TodoSession => {
@@ -37,10 +38,12 @@ const NotebookPanel: React.FC<NotebookPanelProps> = ({ onPointsChange }) => {
     title: string
     content: string
     color: string
+    pointAccount?: PointAccount
   }>({
     title: '',
     content: '',
     color: '#FFB6C1',
+    pointAccount: undefined,
   })
 
   const addMemo = () => {
@@ -49,23 +52,35 @@ const NotebookPanel: React.FC<NotebookPanelProps> = ({ onPointsChange }) => {
         newMemo.content.length,
         readTodoSession().pointRules
       )
+      const currentSession = readTodoSession()
+      const memo: NotebookMemoRecord = {
+        id: crypto.randomUUID(),
+        title: newMemo.title.trim(),
+        content: newMemo.content,
+        color: newMemo.color,
+        createdAt: getTodoTimestamp(),
+        points,
+        pointAccount: newMemo.pointAccount ?? currentSession.pointRules.memoAccount,
+      }
 
       const nextMemos = [
         ...memos,
-        {
-          id: Date.now().toString(),
-          title: newMemo.title,
-          content: newMemo.content,
-          color: newMemo.color,
-          createdAt: getTodoTimestamp(),
-          points,
-        },
+        memo,
       ]
 
-      const currentSession = readTodoSession()
       const nextSession = normalizeTodoSession({
         ...currentSession,
         notebookMemos: nextMemos,
+        pointLedger: upsertPointLedgerEntry(currentSession.pointLedger, {
+          id: `ledger-memo-${memo.id}`,
+          sourceType: 'memo',
+          sourceId: `memo:${memo.id}`,
+          title: memo.title,
+          account: memo.pointAccount ?? currentSession.pointRules.memoAccount,
+          points: memo.points,
+          occurredAt: memo.createdAt,
+          reason: 'メモ記録',
+        }),
       })
       const updatedAt = getTodoTimestamp()
 
@@ -85,6 +100,7 @@ const NotebookPanel: React.FC<NotebookPanelProps> = ({ onPointsChange }) => {
         title: '',
         content: '',
         color: '#FFB6C1',
+        pointAccount: undefined,
       })
       setActiveTab('view')
     }
@@ -149,6 +165,7 @@ const NotebookPanel: React.FC<NotebookPanelProps> = ({ onPointsChange }) => {
                   <div className={styles.noteInfo}>
                     <span className={styles.noteType}>Memo</span>
                     <span className={styles.notePoints}>+{memo.points}pt</span>
+                    <span className={styles.accountBadge}>{memo.pointAccount === 'rest' ? '休憩' : '頑張り'}</span>
                   </div>
                 </div>
               </div>
@@ -178,6 +195,18 @@ const NotebookPanel: React.FC<NotebookPanelProps> = ({ onPointsChange }) => {
                   />
                 ))}
               </div>
+            </div>
+
+            <div className={styles.formGroup}>
+              <label>獲得口座:</label>
+              <select
+                value={newMemo.pointAccount ?? ''}
+                onChange={(e) => setNewMemo({ ...newMemo, pointAccount: (e.target.value || undefined) as PointAccount | undefined })}
+              >
+                <option value="">ルールに従う</option>
+                <option value="effort">頑張り</option>
+                <option value="rest">休憩</option>
+              </select>
             </div>
 
             <div className={styles.formGroup}>

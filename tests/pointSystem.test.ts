@@ -285,7 +285,7 @@ test('available points use the unified earned-minus-spent formula and allow nega
         category: 'bunko',
         pageCount: 2,
         createdAt: timestamp,
-        points: 999,
+        points: 6,
       },
     ],
     notebookMemos: [
@@ -295,7 +295,7 @@ test('available points use the unified earned-minus-spent formula and allow nega
         content: '12345678901234567890',
         color: '#fff',
         createdAt: timestamp,
-        points: 999,
+        points: 2,
       },
     ],
     characterShop: {
@@ -331,6 +331,108 @@ test('default point rules match the reading, memo and review requirements', () =
   assert.equal(normalizeTodoSession({
     pointRules: { ...DEFAULT_POINT_RULES, reviewPoints: 0 },
   }, timestamp).pointRules.reviewPoints, 0)
+})
+
+test('reading points cover minimums, boundaries, categories and normalized custom rules', () => {
+  assert.deepEqual(
+    [1, 19, 20, 39, 40].map(pages => calculateReadingPoints('manga', pages)),
+    [1, 1, 1, 1, 2]
+  )
+  assert.deepEqual(
+    ['manga', 'magazine', 'bunko', 'textbook', 'paper'].map(category =>
+      calculateReadingPoints(category as keyof typeof DEFAULT_POINT_RULES.readingPagesPerPoint, 20)
+    ),
+    [1, 1, 2, 4, 10]
+  )
+  assert.equal(calculateReadingPoints('paper', 0), 0)
+  assert.equal(calculateReadingPoints('paper', -1), 0)
+  assert.equal(calculateReadingPoints('paper', Number.NaN), 0)
+  assert.equal(calculateReadingPoints('paper', 0.5), 1)
+  assert.equal(calculateReadingPoints('paper', 5, {
+    ...DEFAULT_POINT_RULES,
+    readingPagesPerPoint: { ...DEFAULT_POINT_RULES.readingPagesPerPoint, paper: 2.9 },
+  }), 2)
+  assert.equal(calculateReadingPoints('paper', 5, {
+    ...DEFAULT_POINT_RULES,
+    readingPagesPerPoint: { ...DEFAULT_POINT_RULES.readingPagesPerPoint, paper: -4 },
+  }), 2)
+})
+
+test('memo points cover minimums, boundaries and normalized custom rules', () => {
+  assert.deepEqual(
+    [1, 99, 100, 199, 200].map(length => calculateMemoPoints(length)),
+    [1, 1, 1, 1, 2]
+  )
+  assert.equal(calculateMemoPoints(0), 0)
+  assert.equal(calculateMemoPoints(-1), 0)
+  assert.equal(calculateMemoPoints(Number.POSITIVE_INFINITY), 0)
+  assert.equal(calculateMemoPoints(0.5), 1)
+  assert.equal(calculateMemoPoints(11, {
+    ...DEFAULT_POINT_RULES,
+    memoCharactersPerPoint: 5.8,
+  }), 2)
+  assert.equal(calculateMemoPoints(100, {
+    ...DEFAULT_POINT_RULES,
+    memoCharactersPerPoint: 0,
+  }), 1)
+})
+
+test('reading and memo awards freeze default or overridden accounts across rule changes', () => {
+  const saved = normalizeTodoSession({
+    pointRules: {
+      ...DEFAULT_POINT_RULES,
+      readingAccount: 'rest',
+      memoAccount: 'effort',
+    },
+    studyBooks: [{
+      id: 'book-default-account', title: 'Default account', category: 'paper', pageCount: 2,
+      createdAt: timestamp, points: 1,
+    }, {
+      id: 'book-override-account', title: 'Override account', category: 'paper', pageCount: 2,
+      createdAt: timestamp, points: 1, pointAccount: 'effort',
+    }],
+    notebookMemos: [{
+      id: 'memo-default-account', title: 'Default memo', content: 'x', color: '#fff',
+      createdAt: timestamp, points: 1,
+    }, {
+      id: 'memo-override-account', title: 'Override memo', content: 'y', color: '#fff',
+      createdAt: timestamp, points: 1, pointAccount: 'rest',
+    }],
+  }, timestamp)
+
+  assert.deepEqual(saved.studyBooks.map(book => book.pointAccount), ['rest', 'effort'])
+  assert.deepEqual(saved.notebookMemos.map(memo => memo.pointAccount), ['effort', 'rest'])
+  assert.deepEqual(saved.pointLedger.filter(entry => entry.sourceType === 'reading').map(entry => entry.account), ['rest', 'effort'])
+  assert.deepEqual(saved.pointLedger.filter(entry => entry.sourceType === 'memo').map(entry => entry.account), ['effort', 'rest'])
+
+  const reloaded = normalizeTodoSession({
+    ...saved,
+    pointRules: { ...saved.pointRules, readingAccount: 'effort', memoAccount: 'rest' },
+  }, timestamp)
+  assert.equal(reloaded.pointLedger.length, saved.pointLedger.length)
+  assert.deepEqual(reloaded.studyBooks.map(book => book.pointAccount), ['rest', 'effort'])
+  assert.deepEqual(reloaded.notebookMemos.map(memo => memo.pointAccount), ['effort', 'rest'])
+})
+
+test('reading and memo normalization keeps existing ledger edits and unique source ids', () => {
+  const session = normalizeTodoSession({
+    pointRules: DEFAULT_POINT_RULES,
+    studyBooks: [{ id: 'same-book', title: 'Book', category: 'bunko', pageCount: 10, createdAt: timestamp, points: 1, pointAccount: 'effort' }],
+    notebookMemos: [{ id: 'same-memo', title: 'Memo', content: 'x', color: '#fff', createdAt: timestamp, points: 1, pointAccount: 'effort' }],
+    pointLedger: [
+      { id: 'edited-reading', sourceType: 'reading', sourceId: 'reading:same-book', title: 'Edited book', account: 'rest', points: 9, occurredAt: timestamp },
+      { id: 'edited-reading-duplicate', sourceType: 'reading', sourceId: 'reading:same-book', title: 'Latest edit', account: 'rest', points: 8, occurredAt: timestamp },
+      { id: 'edited-memo', sourceType: 'memo', sourceId: 'memo:same-memo', title: 'Edited memo', account: 'rest', points: 7, occurredAt: timestamp },
+    ],
+  }, timestamp)
+  const reloaded = normalizeTodoSession(JSON.parse(JSON.stringify(session)), timestamp)
+
+  assert.equal(reloaded.pointLedger.filter(entry => entry.sourceId === 'reading:same-book').length, 1)
+  assert.equal(reloaded.pointLedger.filter(entry => entry.sourceId === 'memo:same-memo').length, 1)
+  assert.equal(reloaded.pointLedger.find(entry => entry.sourceId === 'reading:same-book')?.points, 8)
+  assert.equal(reloaded.pointLedger.find(entry => entry.sourceId === 'memo:same-memo')?.points, 7)
+  assert.equal(reloaded.studyBooks[0].pointAccount, 'rest')
+  assert.equal(reloaded.notebookMemos[0].pointAccount, 'rest')
 })
 
 test('ledger upsert is idempotent by sourceId and updates the existing award', () => {
@@ -397,7 +499,7 @@ test('only manual adjustments can be negative and invalid numbers become zero', 
   assert.deepEqual(getPointBalances(ledger), { effort: 0, rest: -3, total: -3 })
 })
 
-test('legacy migration preserves points and repeated normalization does not increase them', () => {
+test('legacy migration preserves saved points and repeated normalization does not increase them', () => {
   const legacy = {
     todos: [],
     earnedPoints: 20,
@@ -431,12 +533,12 @@ test('legacy migration preserves points and repeated normalization does not incr
   const migrated = normalizeTodoSession(legacy, timestamp)
   const normalizedAgain = normalizeTodoSession(migrated, timestamp)
 
-  assert.equal(migrated.studyBooks[0].points, 6)
-  assert.equal(migrated.notebookMemos[0].points, 2)
-  assert.equal(getPointBalances(migrated.pointLedger).total, 28)
-  assert.equal(getPointBalances(normalizedAgain.pointLedger).total, 28)
+  assert.equal(migrated.studyBooks[0].points, 999)
+  assert.equal(migrated.notebookMemos[0].points, 999)
+  assert.equal(getPointBalances(migrated.pointLedger).total, 2018)
+  assert.equal(getPointBalances(normalizedAgain.pointLedger).total, 2018)
   assert.equal(normalizedAgain.pointLedger.length, migrated.pointLedger.length)
-  assert.equal(getAvailablePoints(normalizedAgain), 23)
+  assert.equal(getAvailablePoints(normalizedAgain), 2013)
   assert.equal(normalizedAgain.characterShop.outfit, 'legacy-outfit')
   assert.deepEqual(normalizedAgain.characterShop.ownedItems.sort(), [
     'legacy-item',

@@ -17,6 +17,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .header h2 {
@@ -126,6 +128,14 @@
   border-radius: 4px;
 }
 
+.accountBadge {
+  background: rgba(255, 255, 255, 0.55);
+  color: #765000;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-weight: bold;
+}
+
 .addForm {
   display: flex;
   flex-direction: column;
@@ -147,6 +157,9 @@
 .formGroup input,
 .formGroup select,
 .formGroup textarea {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
   padding: 8px 12px;
   border: 1px solid #FFE6A3;
   border-radius: 6px;
