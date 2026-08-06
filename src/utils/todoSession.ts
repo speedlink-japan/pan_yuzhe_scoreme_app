@@ -1,3 +1,32 @@
+import {
+  DailyReview,
+  PointLedgerEntry,
+  PointRules,
+  ReadingCategory,
+  TaskCategory,
+  TaskPreset,
+  calculateMemoPoints,
+  calculateReadingPoints,
+  getPointBalances,
+  normalizeDailyReviews,
+  normalizePointLedger,
+  normalizePointRules,
+  normalizeTaskCategories,
+  normalizeTaskPresets,
+  upsertPointLedgerEntry,
+} from './pointLedger'
+
+export type {
+  DailyReview,
+  PointAccount,
+  PointBalances,
+  PointLedgerEntry,
+  PointRules,
+  PointSourceType,
+  TaskCategory,
+  TaskPreset,
+} from './pointLedger'
+
 export type Difficulty = 'easy' | 'medium' | 'hard'
 
 export interface Step {
@@ -42,7 +71,7 @@ export interface TodoItem {
   data: SingleTask | Project
 }
 
-export type StudyCategory = 'manga' | 'bunko' | 'magazine' | 'textbook' | 'paper'
+export type StudyCategory = ReadingCategory
 
 export interface StudyBookRecord {
   id: string
@@ -78,6 +107,11 @@ export interface TodoSession {
   studyBooks: StudyBookRecord[]
   notebookMemos: NotebookMemoRecord[]
   characterShop: CharacterShopState
+  pointLedger: PointLedgerEntry[]
+  pointRules: PointRules
+  taskCategories: TaskCategory[]
+  taskPresets: TaskPreset[]
+  dailyReviews: DailyReview[]
 }
 
 export interface TodoDailyStats {
@@ -111,8 +145,9 @@ export const TODO_DIFFICULTY_POINTS: Record<Difficulty, number> = {
 export const TODO_STEP_POINTS = 8
 export const TODO_MILESTONE_POINTS = 10
 export const TODO_PROJECT_POINTS = 50
-export const STUDY_POINTS_PER_PAGE = 3
-export const NOTEBOOK_CHARACTERS_PER_POINT = 10
+export const NOTEBOOK_CHARACTERS_PER_POINT = 100
+const LEGACY_STUDY_POINTS_PER_PAGE = 3
+const LEGACY_NOTEBOOK_CHARACTERS_PER_POINT = 10
 
 export const DEFAULT_CHARACTER_SHOP_STATE: CharacterShopState = {
   spentPoints: 0,
@@ -165,6 +200,11 @@ export const createDemoTodoSession = (): TodoSession => {
     studyBooks: [],
     notebookMemos: [],
     characterShop: DEFAULT_CHARACTER_SHOP_STATE,
+    pointLedger: [],
+    pointRules: normalizePointRules(undefined),
+    taskCategories: [],
+    taskPresets: [],
+    dailyReviews: [],
     todos: [
       {
         type: 'single',
@@ -271,7 +311,9 @@ const normalizeDate = (value: unknown, fallback: string): string =>
   typeof value === 'string' && value.length > 0 ? value : fallback
 
 const normalizeNonNegativePoints = (value: unknown): number | undefined =>
-  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+  typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? Math.trunc(value)
+    : undefined
 
 const normalizeCompletedDate = (
   completed: boolean,
@@ -385,7 +427,7 @@ const normalizePointHistoryItem = (
     id: value.id,
     title: value.title,
     type: value.type,
-    points: value.points,
+    points: Math.trunc(value.points),
     completedAt: normalizeDate(value.completedAt, fallbackDate),
     sourceTodo: value.sourceTodo
       ? normalizeTodoItems([value.sourceTodo], fallbackDate)[0]
@@ -423,7 +465,9 @@ const isStudyCategory = (value: unknown): value is StudyCategory =>
 
 const normalizeStudyBooks = (
   value: Partial<StudyBookRecord>[] | undefined,
-  fallbackDate: string
+  fallbackDate: string,
+  pointRules: PointRules,
+  isLegacySession: boolean
 ): StudyBookRecord[] => {
   if (!Array.isArray(value)) return []
 
@@ -446,7 +490,11 @@ const normalizeStudyBooks = (
       category: book.category,
       pageCount,
       createdAt: normalizeDate(book.createdAt, fallbackDate),
-      points: pageCount * STUDY_POINTS_PER_PAGE,
+      points:
+        isLegacySession
+          ? pageCount * LEGACY_STUDY_POINTS_PER_PAGE
+          : normalizeNonNegativePoints(book.points) ??
+            calculateReadingPoints(book.category, pageCount, pointRules),
     })
     return books
   }, [])
@@ -454,7 +502,9 @@ const normalizeStudyBooks = (
 
 const normalizeNotebookMemos = (
   value: Partial<NotebookMemoRecord>[] | undefined,
-  fallbackDate: string
+  fallbackDate: string,
+  pointRules: PointRules,
+  isLegacySession: boolean
 ): NotebookMemoRecord[] => {
   if (!Array.isArray(value)) return []
 
@@ -473,7 +523,11 @@ const normalizeNotebookMemos = (
       content: memo.content,
       color: typeof memo.color === 'string' ? memo.color : '#FFB6C1',
       createdAt: normalizeDate(memo.createdAt, fallbackDate),
-      points: Math.floor(memo.content.length / NOTEBOOK_CHARACTERS_PER_POINT),
+      points:
+        isLegacySession
+          ? Math.floor(memo.content.length / LEGACY_NOTEBOOK_CHARACTERS_PER_POINT)
+          : normalizeNonNegativePoints(memo.points) ??
+            calculateMemoPoints(memo.content.length, pointRules),
     })
     return memos
   }, [])
@@ -486,7 +540,7 @@ const normalizeCharacterShop = (
     typeof value?.spentPoints === 'number' &&
     Number.isFinite(value.spentPoints) &&
     value.spentPoints >= 0
-      ? value.spentPoints
+      ? Math.trunc(value.spentPoints)
       : 0,
   outfit: typeof value?.outfit === 'string' ? value.outfit : DEFAULT_CHARACTER_SHOP_STATE.outfit,
   activeItem:
@@ -502,6 +556,94 @@ const normalizeCharacterShop = (
     ])
   ),
 })
+
+const migrateLegacyPointLedger = (
+  ledger: PointLedgerEntry[],
+  earnedPoints: number,
+  archivedPointHistory: TodoPointHistoryItem[],
+  studyBooks: StudyBookRecord[],
+  notebookMemos: NotebookMemoRecord[],
+  dailyReviews: DailyReview[],
+  pointRules: PointRules,
+  fallbackDate: string
+): PointLedgerEntry[] => {
+  let migrated = ledger
+
+  archivedPointHistory.forEach(item => {
+    migrated = upsertPointLedgerEntry(migrated, {
+      id: `ledger-todo-${item.id}`,
+      sourceType: 'todo',
+      sourceId: `todo:${item.id}`,
+      title: item.title,
+      account: pointRules.todoAccount,
+      points: item.points,
+      occurredAt: item.completedAt,
+      reason: '旧Todo履歴から移行',
+    }, fallbackDate)
+  })
+
+  const archivedPoints = archivedPointHistory.reduce((total, item) => total + item.points, 0)
+  const legacyBalance = earnedPoints - archivedPoints
+  const existingLegacyBalance = migrated.find(
+    item => item.sourceId === 'migration:legacy-earned-balance'
+  )
+  if (
+    legacyBalance !== 0 ||
+    existingLegacyBalance
+  ) {
+    migrated = upsertPointLedgerEntry(migrated, {
+      id: 'ledger-legacy-earned-balance',
+      sourceType: 'manual-adjustment',
+      sourceId: 'migration:legacy-earned-balance',
+      title: '既存Todoポイント残高',
+      account: pointRules.todoAccount,
+      points: legacyBalance,
+      occurredAt: existingLegacyBalance?.occurredAt ?? fallbackDate,
+      reason: '既存のearnedPoints合計を維持するための移行差分',
+    }, fallbackDate)
+  }
+
+  studyBooks.forEach(book => {
+    migrated = upsertPointLedgerEntry(migrated, {
+      id: `ledger-reading-${book.id}`,
+      sourceType: 'reading',
+      sourceId: `reading:${book.id}`,
+      title: book.title,
+      account: pointRules.readingAccount,
+      points: book.points,
+      occurredAt: book.createdAt,
+      reason: '読書記録',
+    }, fallbackDate)
+  })
+
+  notebookMemos.forEach(memo => {
+    migrated = upsertPointLedgerEntry(migrated, {
+      id: `ledger-memo-${memo.id}`,
+      sourceType: 'memo',
+      sourceId: `memo:${memo.id}`,
+      title: memo.title,
+      account: pointRules.memoAccount,
+      points: memo.points,
+      occurredAt: memo.createdAt,
+      reason: 'メモ記録',
+    }, fallbackDate)
+  })
+
+  dailyReviews.filter(review => review.awarded).forEach(review => {
+    migrated = upsertPointLedgerEntry(migrated, {
+      id: `ledger-review-${review.id}`,
+      sourceType: 'review',
+      sourceId: `review:${review.id}`,
+      title: `${review.date}の見直し`,
+      account: pointRules.reviewAccount,
+      points: pointRules.reviewPoints,
+      occurredAt: review.completedAt,
+      reason: '日次見直し',
+    }, fallbackDate)
+  })
+
+  return migrated
+}
 
 const reconcilePendingHistory = (
   todos: TodoItem[],
@@ -598,19 +740,51 @@ export const normalizeTodoSession = (
     normalizePointHistory(value?.pendingPointHistory, fallbackDate),
     hiddenPointHistoryIds
   )
+  const earnedPoints =
+    typeof value?.earnedPoints === 'number' && Number.isFinite(value.earnedPoints)
+      ? Math.trunc(value.earnedPoints)
+      : 0
+  const archivedPointHistory = normalizePointHistory(value?.archivedPointHistory, fallbackDate)
+  const isLegacySession = value?.pointRules === undefined
+  const pointRules = normalizePointRules(value?.pointRules)
+  const studyBooks = normalizeStudyBooks(
+    value?.studyBooks,
+    fallbackDate,
+    pointRules,
+    isLegacySession
+  )
+  const notebookMemos = normalizeNotebookMemos(
+    value?.notebookMemos,
+    fallbackDate,
+    pointRules,
+    isLegacySession
+  )
+  const dailyReviews = normalizeDailyReviews(value?.dailyReviews, fallbackDate)
+  const pointLedger = migrateLegacyPointLedger(
+    normalizePointLedger(value?.pointLedger, fallbackDate),
+    earnedPoints,
+    archivedPointHistory,
+    studyBooks,
+    notebookMemos,
+    dailyReviews,
+    pointRules,
+    fallbackDate
+  )
 
   return {
     todos,
-    earnedPoints:
-      typeof value?.earnedPoints === 'number' && Number.isFinite(value.earnedPoints)
-        ? value.earnedPoints
-        : 0,
-    archivedPointHistory: normalizePointHistory(value?.archivedPointHistory, fallbackDate),
+    earnedPoints,
+    archivedPointHistory,
     pendingPointHistory,
     hiddenPointHistoryIds,
-    studyBooks: normalizeStudyBooks(value?.studyBooks, fallbackDate),
-    notebookMemos: normalizeNotebookMemos(value?.notebookMemos, fallbackDate),
+    studyBooks,
+    notebookMemos,
     characterShop: normalizeCharacterShop(value?.characterShop),
+    pointLedger,
+    pointRules,
+    taskCategories: normalizeTaskCategories(value?.taskCategories),
+    taskPresets: normalizeTaskPresets(value?.taskPresets),
+    dailyReviews,
   }
 }
 
@@ -621,10 +795,7 @@ export const getNotebookPoints = (memos: NotebookMemoRecord[]): number =>
   memos.reduce((total, memo) => total + memo.points, 0)
 
 export const getAvailablePoints = (session: TodoSession): number =>
-  session.earnedPoints +
-  getStudyPoints(session.studyBooks) +
-  getNotebookPoints(session.notebookMemos) -
-  session.characterShop.spentPoints
+  getPointBalances(session.pointLedger).total - session.characterShop.spentPoints
 
 export const getTodoStepPoints = (step: Step): number =>
   normalizeNonNegativePoints(step.rewardPoints) ?? TODO_STEP_POINTS

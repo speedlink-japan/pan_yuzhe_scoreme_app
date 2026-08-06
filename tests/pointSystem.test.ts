@@ -13,6 +13,15 @@ import {
   normalizeTodoSession,
 } from '../src/utils/todoSession'
 import {
+  DEFAULT_POINT_RULES,
+  calculateMemoPoints,
+  calculateReadingPoints,
+  getPointBalances,
+  getPointLedgerByDate,
+  normalizePointLedger,
+  upsertPointLedgerEntry,
+} from '../src/utils/pointLedger'
+import {
   cloneTodoFromHistory,
   createTodoHistoryRedoPlan,
 } from '../src/utils/todoHistoryRestore'
@@ -208,4 +217,183 @@ test('available points use the unified earned-minus-spent formula and allow nega
   })
 
   assert.equal(getAvailablePoints(session), -12)
+  assert.deepEqual(getPointBalances(session.pointLedger), {
+    effort: 28,
+    rest: 0,
+    total: 28,
+  })
+  assert.equal(session.characterShop.spentPoints, 40)
+})
+
+test('default point rules match the reading, memo and review requirements', () => {
+  assert.deepEqual(DEFAULT_POINT_RULES.readingPagesPerPoint, {
+    manga: 20,
+    magazine: 12,
+    bunko: 10,
+    textbook: 5,
+    paper: 2,
+  })
+  assert.equal(DEFAULT_POINT_RULES.memoCharactersPerPoint, 100)
+  assert.equal(DEFAULT_POINT_RULES.reviewPoints, 3)
+  assert.equal(calculateReadingPoints('manga', 39), 1)
+  assert.equal(calculateReadingPoints('paper', 4), 2)
+  assert.equal(calculateMemoPoints(199), 1)
+  assert.equal(normalizeTodoSession({
+    pointRules: { ...DEFAULT_POINT_RULES, reviewPoints: 0 },
+  }, timestamp).pointRules.reviewPoints, 0)
+})
+
+test('ledger upsert is idempotent by sourceId and updates the existing award', () => {
+  const first = upsertPointLedgerEntry([], {
+    id: 'entry-1',
+    sourceType: 'todo',
+    sourceId: 'todo:task-1',
+    title: 'Task',
+    account: 'effort',
+    points: 10,
+    occurredAt: timestamp,
+  })
+  const second = upsertPointLedgerEntry(first, {
+    id: 'entry-2',
+    sourceType: 'todo',
+    sourceId: 'todo:task-1',
+    title: 'Task edited',
+    account: 'rest',
+    points: 12,
+    occurredAt: timestamp,
+  })
+
+  assert.equal(second.length, 1)
+  assert.equal(second[0].id, 'entry-2')
+  assert.equal(second[0].points, 12)
+  assert.deepEqual(getPointBalances(second), { effort: 0, rest: 12, total: 12 })
+})
+
+test('only manual adjustments can be negative and invalid numbers become zero', () => {
+  const ledger = normalizePointLedger([
+    {
+      id: 'bad-todo',
+      sourceType: 'todo',
+      sourceId: 'todo:bad',
+      title: 'Bad todo',
+      account: 'effort',
+      points: -4,
+      occurredAt: timestamp,
+    },
+    {
+      id: 'manual',
+      sourceType: 'manual-adjustment',
+      sourceId: 'manual:correction',
+      title: 'Correction',
+      account: 'rest',
+      points: -3.8,
+      occurredAt: timestamp,
+      reason: 'correction',
+    },
+    {
+      id: 'nan',
+      sourceType: 'memo',
+      sourceId: 'memo:nan',
+      title: 'Invalid',
+      account: 'effort',
+      points: Number.NaN,
+      occurredAt: timestamp,
+    },
+  ], timestamp)
+
+  assert.equal(ledger[0].points, 0)
+  assert.equal(ledger[1].points, -3)
+  assert.equal(ledger[2].points, 0)
+  assert.deepEqual(getPointBalances(ledger), { effort: 0, rest: -3, total: -3 })
+})
+
+test('legacy migration preserves points and repeated normalization does not increase them', () => {
+  const legacy = {
+    todos: [],
+    earnedPoints: 20,
+    archivedPointHistory: [],
+    pendingPointHistory: [],
+    hiddenPointHistoryIds: [],
+    studyBooks: [{
+      id: 'legacy-book',
+      title: 'Legacy book',
+      category: 'bunko' as const,
+      pageCount: 2,
+      createdAt: timestamp,
+      points: 999,
+    }],
+    notebookMemos: [{
+      id: 'legacy-memo',
+      title: 'Legacy memo',
+      content: '12345678901234567890',
+      color: '#fff',
+      createdAt: timestamp,
+      points: 999,
+    }],
+    characterShop: {
+      spentPoints: 5,
+      outfit: 'legacy-outfit',
+      activeItem: 'legacy-item',
+      ownedItems: ['legacy-outfit', 'legacy-item'],
+    },
+  }
+
+  const migrated = normalizeTodoSession(legacy, timestamp)
+  const normalizedAgain = normalizeTodoSession(migrated, timestamp)
+
+  assert.equal(migrated.studyBooks[0].points, 6)
+  assert.equal(migrated.notebookMemos[0].points, 2)
+  assert.equal(getPointBalances(migrated.pointLedger).total, 28)
+  assert.equal(getPointBalances(normalizedAgain.pointLedger).total, 28)
+  assert.equal(normalizedAgain.pointLedger.length, migrated.pointLedger.length)
+  assert.equal(getAvailablePoints(normalizedAgain), 23)
+  assert.equal(normalizedAgain.characterShop.outfit, 'legacy-outfit')
+  assert.deepEqual(normalizedAgain.characterShop.ownedItems.sort(), [
+    'legacy-item',
+    'legacy-outfit',
+    'none',
+    'whiteSkirt',
+  ])
+})
+
+test('new session fields normalize and survive a JSON and Supabase-compatible round trip', () => {
+  const session = normalizeTodoSession({
+    todos: [],
+    earnedPoints: 0,
+    archivedPointHistory: [],
+    pendingPointHistory: [],
+    hiddenPointHistoryIds: [],
+    studyBooks: [],
+    notebookMemos: [],
+    characterShop: {
+      spentPoints: 0,
+      outfit: 'whiteSkirt',
+      activeItem: 'none',
+      ownedItems: ['whiteSkirt', 'none'],
+    },
+    pointRules: {
+      ...DEFAULT_POINT_RULES,
+      todoAccount: 'rest',
+    },
+    pointLedger: [{
+      id: 'review-1',
+      sourceType: 'review',
+      sourceId: 'review:2026-07-23',
+      title: 'Review',
+      account: 'effort',
+      points: 3,
+      occurredAt: timestamp,
+    }],
+    taskCategories: [{ id: 'health', name: 'Health', account: 'rest', points: 5 }],
+    taskPresets: [{ id: 'walk', title: 'Walk', categoryId: 'health', account: 'rest', points: 5 }],
+    dailyReviews: [{ id: 'daily-1', date: '2026-07-23', note: 'Done', completedAt: timestamp, awarded: true }],
+  }, timestamp)
+  const roundTripped = normalizeTodoSession(JSON.parse(JSON.stringify(session)), timestamp)
+
+  assert.equal(roundTripped.pointRules.todoAccount, 'rest')
+  assert.equal(roundTripped.taskCategories[0].account, 'rest')
+  assert.equal(roundTripped.taskPresets[0].categoryId, 'health')
+  assert.equal(roundTripped.dailyReviews[0].awarded, true)
+  assert.equal(roundTripped.pointLedger.filter(item => item.sourceId === 'review:2026-07-23').length, 1)
+  assert.equal(getPointLedgerByDate(roundTripped.pointLedger)['2026-07-23'].length, 2)
 })

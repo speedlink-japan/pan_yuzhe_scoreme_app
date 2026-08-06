@@ -3,7 +3,6 @@
 import React, { useState } from 'react'
 import styles from './NotebookPanel.module.css'
 import {
-  NOTEBOOK_CHARACTERS_PER_POINT,
   NotebookMemoRecord,
   TODO_SESSION_STORAGE_KEY,
   TodoSession,
@@ -11,6 +10,7 @@ import {
   getTodoTimestamp,
   normalizeTodoSession,
 } from '@/utils/todoSession'
+import { calculateMemoPoints } from '@/utils/pointLedger'
 import { persistTodoSession } from '@/utils/todoSupabaseSync'
 
 const readTodoSession = (): TodoSession => {
@@ -45,7 +45,10 @@ const NotebookPanel: React.FC<NotebookPanelProps> = ({ onPointsChange }) => {
 
   const addMemo = () => {
     if (newMemo.title.trim() && newMemo.content.trim()) {
-      const points = Math.floor(newMemo.content.length / NOTEBOOK_CHARACTERS_PER_POINT)
+      const points = calculateMemoPoints(
+        newMemo.content.length,
+        readTodoSession().pointRules
+      )
 
       const nextMemos = [
         ...memos,

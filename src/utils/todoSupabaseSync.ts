@@ -172,6 +172,7 @@ export const persistTodoSession = (
   session: TodoSession,
   updatedAt: string
 ): Promise<void> => {
-  saveLocalTodoSession(session, updatedAt)
-  return queueRemoteTodoSessionSave(session, updatedAt)
+  const normalizedSession = normalizeTodoSession(session)
+  saveLocalTodoSession(normalizedSession, updatedAt)
+  return queueRemoteTodoSessionSave(normalizedSession, updatedAt)
 }

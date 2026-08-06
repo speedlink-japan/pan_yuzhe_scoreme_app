@@ -3,7 +3,6 @@
 import React, { useState } from 'react'
 import styles from './StudyPanel.module.css'
 import {
-  STUDY_POINTS_PER_PAGE,
   StudyBookRecord,
   StudyCategory,
   TODO_SESSION_STORAGE_KEY,
@@ -12,6 +11,7 @@ import {
   getTodoTimestamp,
   normalizeTodoSession,
 } from '@/utils/todoSession'
+import { calculateReadingPoints } from '@/utils/pointLedger'
 import { persistTodoSession } from '@/utils/todoSupabaseSync'
 
 const readTodoSession = (): TodoSession => {
@@ -42,9 +42,8 @@ const StudyPanel: React.FC<StudyPanelProps> = ({ onPointsChange }) => {
     pageCount: 1,
   })
 
-  const calculatePoints = (pageCount: number) => {
-    return pageCount * STUDY_POINTS_PER_PAGE
-  }
+  const calculatePoints = (pageCount: number, category = newBook.category) =>
+    calculateReadingPoints(category, pageCount, readTodoSession().pointRules)
 
   const commitBooks = (nextBooks: StudyBookRecord[]): boolean => {
     const currentSession = readTodoSession()
@@ -70,7 +69,7 @@ const StudyPanel: React.FC<StudyPanelProps> = ({ onPointsChange }) => {
 
   const addBook = () => {
     if (newBook.title.trim() && newBook.pageCount > 0) {
-      const points = calculatePoints(newBook.pageCount)
+      const points = calculatePoints(newBook.pageCount, newBook.category)
 
       const nextBooks = [
         ...books,
