@@ -30,9 +30,7 @@ interface NotebookPanelProps {
 }
 
 const NotebookPanel: React.FC<NotebookPanelProps> = ({ onPointsChange }) => {
-  const [memos, setMemos] = useState<NotebookMemoRecord[]>(
-    () => readTodoSession().notebookMemos
-  )
+  const [memos, setMemos] = useState<NotebookMemoRecord[]>([])
   const [activeTab, setActiveTab] = useState<'view' | 'add'>('view')
   const [newMemo, setNewMemo] = useState<{
     title: string
@@ -116,6 +114,8 @@ const NotebookPanel: React.FC<NotebookPanelProps> = ({ onPointsChange }) => {
   }, [memos, onPointsChange])
 
   React.useEffect(() => {
+    setMemos(readTodoSession().notebookMemos)
+
     const handleSessionUpdate = (event: Event) => {
       const customEvent = event as CustomEvent<Partial<TodoSession>>
       setMemos(normalizeTodoSession(customEvent.detail).notebookMemos)

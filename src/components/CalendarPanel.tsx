@@ -153,7 +153,9 @@ const formatDiff = (value: number): string => {
 }
 
 const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) => {
-  const [todoSession, setTodoSession] = React.useState<TodoSession>(() => readTodoSession())
+  const [todoSession, setTodoSession] = React.useState<TodoSession>(() =>
+    normalizeTodoSession(null)
+  )
   const [selectedDateKey, setSelectedDateKey] = React.useState<string | null>(null)
   const [view, setView] = React.useState<CalendarView>('calendar')
   const [summaryMode, setSummaryMode] = React.useState<SummaryMode>('week')
@@ -277,6 +279,8 @@ const CalendarPanel: React.FC<CalendarPanelProps> = ({ summaryRequestKey = 0 }) 
     const syncTodoSession = () => {
       setTodoSession(readTodoSession())
     }
+
+    syncTodoSession()
 
     const handleTodoSessionUpdated = (event: Event) => {
       const customEvent = event as CustomEvent<Partial<TodoSession>>
